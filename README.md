@@ -5,8 +5,8 @@ Este projeto é o trabalho final da disciplina de Internet das Coisas (DLSC808) 
 ### Identificação:
 
 - Arthur Leitão Etges
-- João Anônio Guerim Guass
-- João Vítor Cordenonsi Bernardi
+- João Anônio Guerim Gauss
+- João Vítor Bernardi Cordenonsi
 - Samuel Steffler
 - Tiago Steffler
 
