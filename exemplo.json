@@ -1,0 +1,15 @@
+[
+    {
+        "id" : 1,
+        "tipo" : 6, 
+        "pinos" : [
+            {
+                "pino" : 22,
+                "tipo" : 1
+            }
+        ],
+        "atributo1" : 0,
+        "atributo2" : 0,
+        "atributo3" : 0
+    }
+]

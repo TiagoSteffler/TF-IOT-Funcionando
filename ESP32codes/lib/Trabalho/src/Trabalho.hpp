@@ -7,6 +7,12 @@
 #include <Arduino.h>        
 #include <ArduinoJson.h>    
 
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+#include <Wire.h>
+#include <Vector>
+
+
 // ---------------------------- CONFIGS MQTT --------------------------
 #define ID_MQTT  "ESP32_005" 
 const char* BROKER_MQTT = "192.168.2.100"; // Alterar para IP do servidor
@@ -20,8 +26,61 @@ const char* PASSWORD = "S3nhab0@"; // Alterar para sua senha Wi-Fi
 /*VARS*/
 //char* json_config; //JSON recebido por protocolo
 /*FUNÇÕES*/
-void init_sensor_config(char* json_config);
 
+void init_sensor_config(char* json_config);
+/*
+*ENUM JSON
+*O padrão descrito será utilizado pelo json de configuração inicial
+*Cada número pode configurar como deve ser feita a leitura do pino
+*/
+typedef enum estado_pino_t{
+    DESATIVADO,
+    DIGITAL_INPUT,
+    DIGITAL_OUTPUT,
+    ANALOG,
+    SCL,
+    SDA,
+    ONE_WIRE
+} Pino_tipo;
+
+typedef enum tipo_sensor_t{
+    MPU6050,
+    DS18B20,
+    HC_SR04,
+    APDS_9960,
+    SG_90,
+    RELE,
+    JOYSTICK,
+    TECLADO_4X4,
+    IR,
+    ENCODER
+} Sensor_tipo;
+
+typedef struct Pino
+{
+    int pin;
+    Pino_tipo tipo;
+}Pino;
+
+
+typedef struct Sensor
+{
+    int id;
+    Sensor_tipo tipo;
+    
+    int atributo1;
+    int atributo2;
+    int atributo3;
+    int atributo4;
+
+}Sensor;
+
+
+
+
+typedef struct apds_read_t{
+    int r, g, b, c, proximity;
+} APDS_read;
 
 // ----------------------------- PINOS --------------------------------
 #define PIN_SCL 17
