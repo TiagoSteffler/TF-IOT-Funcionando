@@ -1,6 +1,6 @@
 #ifndef TRABALHO_HPP
 #define TRABALHO_HPP
-
+using namespace std;
 // ----------------------------- INCLUDES ----------------------------
 #include <WiFi.h>          
 #include <PubSubClient.h>  
@@ -9,8 +9,11 @@
 
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
+#include <Keypad.h>
+
 #include <Wire.h>
-#include <Vector>
+#include <vector>
+#include <string>
 
 
 // ---------------------------- CONFIGS MQTT --------------------------
@@ -23,6 +26,12 @@ const char* SSID = "iot2022"; // Alterar para sua rede Wi-Fi
 const char* PASSWORD = "S3nhab0@"; // Alterar para sua senha Wi-Fi
 
 // --------------------------- CONFIG INIT ----------------------------
+/*TIPOS*/
+typedef int atributo_1_t;
+typedef int atributo_2_t;
+typedef int atributo_3_t;
+typedef int atributo_4_t;
+
 /*VARS*/
 //char* json_config; //JSON recebido por protocolo
 /*FUNÇÕES*/
@@ -33,7 +42,7 @@ void init_sensor_config(char* json_config);
 *O padrão descrito será utilizado pelo json de configuração inicial
 *Cada número pode configurar como deve ser feita a leitura do pino
 */
-typedef enum estado_pino_t{
+typedef enum estado_pino_t {
     DESATIVADO,
     DIGITAL_INPUT,
     DIGITAL_OUTPUT,
@@ -63,15 +72,17 @@ typedef struct Pino
 }Pino;
 
 
-typedef struct Sensor
+typedef struct dado_sensor_t
 {
     int id;
+
     Sensor_tipo tipo;
-    
-    int atributo1;
-    int atributo2;
-    int atributo3;
-    int atributo4;
+    string desc;
+    vector<Pino> pinos;
+    atributo_1_t atributo1;
+    atributo_2_t atributo2;
+    atributo_3_t atributo3;
+    atributo_4_t atributo4;
 
 }Sensor;
 

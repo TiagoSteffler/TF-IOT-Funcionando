@@ -13,7 +13,6 @@ public:
     
     MPU6050(int id, int acc, int gyro, int filter, int addr_pin, int sda, int scl);
     ~MPU6050();
-    MPUinit();
     void setParamsMPU(int acc_range, int gyro_range, int filter_bandwidth);
     MPU_read getValues();
 };
@@ -42,7 +41,7 @@ MPU6050::~MPU6050() {
 
 }
 
-void setParamsMPU(int acc_range, int gyro_range, int filter_bandwidth) {
+MPU6050::setParamsMPU(int acc_range, int gyro_range, int filter_bandwidth) {
     mpu.setAccelerometerRange(acc_range);
     Serial.print("Alcance definido para ");
     switch (mpu.getAccelerometerRange()) {
@@ -105,7 +104,7 @@ void setParamsMPU(int acc_range, int gyro_range, int filter_bandwidth) {
 }
 
 
-MPU_read getValues(){
+MPU6050::getValues(){
     sensors_event_t a, g, temp;
     mpu.getEvent(&a, &g, &temp);
     MPU_read read;
