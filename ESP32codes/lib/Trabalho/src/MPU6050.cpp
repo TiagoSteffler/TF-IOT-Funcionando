@@ -11,14 +11,13 @@ public:
     } MPU_read;
 
     
-    
-    
     MPU6050(int id, int acc, int gyro, int filter, int addr_pin, int sda, int scl);
     ~MPU6050();
     MPUinit();
     void setParamsMPU(int acc_range, int gyro_range, int filter_bandwidth);
     MPU_read getValues();
 };
+
 
 MPU6050::MPU6050(int id, int acc, int gyro, int filter, int addr_pin, int sda = PIN_SDA, int scl = PIN_SCL) {
     Wire.begin(sda, scl);

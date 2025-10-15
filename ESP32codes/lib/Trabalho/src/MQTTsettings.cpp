@@ -7,13 +7,8 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length);
 void verifica_conexoes_wifi_mqtt(void);
 void readAndPublishSensors(void);
 
-/* Função: inicializa parâmetros de conexão MQTT(endereço do  
- *         broker, porta e seta função de callback)
- * Parâmetros: nenhum
- * Retorno: nenhum
- */
-void init_mqtt(void) 
-{
+/// @brief Inicializacao do MQTT
+void init_mqtt(void) {
     /* informa a qual broker e porta deve ser conectado */
     MQTT.setServer(BROKER_MQTT, BROKER_PORT); 
     /* atribui função de callback (função chamada quando qualquer informação do 

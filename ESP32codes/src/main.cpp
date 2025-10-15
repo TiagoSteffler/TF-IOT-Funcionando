@@ -20,10 +20,9 @@ float readTemperature(void);
 /* 
  *  Implementações das funções
  */
-void setup() 
-{
+void setup() {
     init_serial();
-    init_pins();
+    //init_pins();
     init_wifi();
     init_mqtt();
     
@@ -32,24 +31,15 @@ void setup()
     Serial.println("====================================");
 }
   
-/* Função: inicializa comunicação serial com baudrate 115200 (para fins de monitorar no terminal serial 
-*          o que está acontecendo.
-* Parâmetros: nenhum
-* Retorno: nenhum
-*/
-void init_serial() 
-{
+/// @brief Inicializacao da comunicacao serial
+void init_serial() {
     Serial.begin(115200);
     delay(1000);
     Serial.println("\n\nIniciando sistema IoT...");
 }
 
-/* Função: inicializa os pinos do ESP32
- * Parâmetros: nenhum
- * Retorno: nenhum
- */
-void init_pins(void)
-{
+/// @brief Inicializacao
+void init_pins() {
     pinMode(PIN_LED, OUTPUT);
     pinMode(PIN_BUTTON, INPUT_PULLUP);
     pinMode(PIN_TEMP_SENSOR, INPUT);
@@ -58,12 +48,8 @@ void init_pins(void)
     Serial.println("Pinos configurados!");
 }
  
-/* Função: inicializa e conecta-se na rede WI-FI desejada
- * Parâmetros: nenhum
- * Retorno: nenhum
- */
-void init_wifi(void) 
-{
+/// @brief Inicializacao da conexao Wi-Fi
+void init_wifi(void) {
     delay(10);
     Serial.println("------Conexao WI-FI------");
     Serial.print("Conectando-se na rede: ");
@@ -74,28 +60,8 @@ void init_wifi(void)
   
 
  
-/* Função: lê temperatura simulada/real
- * Parâmetros: nenhum
- * Retorno: temperatura em °C
- */
-float readTemperature(void)
-{
-    // SIMULAÇÃO: Gera temperatura variando entre 20-35°C
-    // Para sensor real (DS18B20), substituir por leitura real
-    simulatedTemp += random(-10, 11) / 10.0; // Varia ±1°C
-    
-    // Limita entre 20-35°C
-    if (simulatedTemp < 20.0) simulatedTemp = 20.0;
-    if (simulatedTemp > 35.0) simulatedTemp = 35.0;
-    
-    return simulatedTemp;
-}
 
-
-
-/* Programa principal */
-void loop() 
-{   
+void loop() {   
     // Garante funcionamento das conexões WiFi e ao broker MQTT
     verifica_conexoes_wifi_mqtt();
     
