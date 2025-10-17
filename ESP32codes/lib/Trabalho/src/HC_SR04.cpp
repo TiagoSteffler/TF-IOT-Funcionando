@@ -1,4 +1,4 @@
-#include "Trabalho.hpp"
+#include <Trabalho.hpp>
 
 class HCSR04{  
 private:

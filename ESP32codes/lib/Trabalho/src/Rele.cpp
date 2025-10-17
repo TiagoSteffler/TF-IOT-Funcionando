@@ -1,3 +1,5 @@
+#include <Trabalho.hpp>
+
 enum { LOW, HIGH };
 
 class Rele {

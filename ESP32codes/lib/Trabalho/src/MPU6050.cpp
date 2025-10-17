@@ -1,4 +1,4 @@
-#include "Trabalho.hpp"
+#include <Trabalho.hpp>
 
 class MPU6050 {
 private:

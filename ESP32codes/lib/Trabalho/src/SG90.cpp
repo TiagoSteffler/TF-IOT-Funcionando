@@ -1,4 +1,5 @@
 #include <Servo.h>
+#include <Trabalho.hpp>
 
 class SG90 {
     public:
