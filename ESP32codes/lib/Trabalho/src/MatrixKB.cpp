@@ -1,4 +1,4 @@
-#include "Trabalho.hpp"
+#include <Trabalho.hpp>
 
 #define NO_KEY '\0'
 class Matrix4x4 {

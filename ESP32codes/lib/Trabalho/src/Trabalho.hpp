@@ -47,8 +47,8 @@ typedef enum estado_pino_t {
     DIGITAL_INPUT,
     DIGITAL_OUTPUT,
     ANALOG,
-    SCL,
-    SDA,
+    SCL_,
+    SDA_,
     ONE_WIRE
 } Pino_tipo;
 
@@ -86,7 +86,7 @@ typedef struct dado_sensor_t
 
 }Sensor;
 
-
+//--------------------------------------------------------------------
 
 
 typedef struct apds_read_t{
