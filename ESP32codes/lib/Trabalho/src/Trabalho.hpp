@@ -46,7 +46,7 @@ typedef enum estado_pino_t {
     DESATIVADO,
     DIGITAL_INPUT,
     DIGITAL_OUTPUT,
-    ANALOG,
+    ANALOGIC,
     SCL,
     SDA,
     ONE_WIRE
