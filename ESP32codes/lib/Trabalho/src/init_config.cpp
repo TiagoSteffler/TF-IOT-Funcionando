@@ -1,4 +1,4 @@
-#include "Trabalho.hpp"
+#include <Trabalho.hpp>
 vector<Sensor> init_sensor_config(const char* json_config){
   StaticJsonDocument<1024> doc;
   DeserializationError error = deserializeJson(doc, json_config);
@@ -54,7 +54,7 @@ vector<Sensor> init_sensor_config(const char* json_config){
         continue; // Skip this pin if fields are missing or invalid
       }
       pino.pin = pino_json["pino"];
-      pino.tipo = static_cast<Pino_funcao>(pino_json["tipo"].as<int>());
+      pino.tipo = static_cast<Pino_tipo>(pino_json["tipo"].as<int>());
       sensor.pinos.push_back(pino);
     }
     //atributos
