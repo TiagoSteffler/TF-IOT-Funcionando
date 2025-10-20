@@ -2,7 +2,8 @@
 #define TRABALHO_HPP
 using namespace std;
 // ----------------------------- INCLUDES ----------------------------
-#include <WiFi.h>          
+#include <WiFi.h>
+#include <WiFiManager.h>      
 #include <PubSubClient.h>  
 #include <Arduino.h>        
 #include <ArduinoJson.h>    
@@ -18,12 +19,25 @@ using namespace std;
 
 // ---------------------------- CONFIGS MQTT --------------------------
 #define ID_MQTT  "ESP32_005" 
-const char* BROKER_MQTT = "192.168.2.100"; // Alterar para IP do servidor
-int BROKER_PORT = 1883;
 #define TOPICO_SUBSCRIBE "/iot2025/led/70"
 #define TOPICO_PUBLISH   "/iot2025/sensors/70" 
-const char* SSID = "iot2022"; // Alterar para sua rede Wi-Fi
-const char* PASSWORD = "S3nhab0@"; // Alterar para sua senha Wi-Fi
+
+extern char BROKER_MQTT[]; // Alterar para IP do servidor
+extern int BROKER_PORT;
+extern char SSID[]; // Alterar para sua rede Wi-Fi
+extern char PASSWORD[]; // Alterar para sua senha Wi-Fi
+
+/* Objetos compartilhados (definidos em MQTTsettings.cpp) */
+
+extern WiFiClient espClient;
+extern PubSubClient MQTT;
+
+/* Funções do módulo MQTT/MANAGEMENT usadas pela main */
+void init_mqtt(void);
+void reconnect_mqtt(void);
+void reconnect_wifi(void);
+void verifica_conexoes_wifi_mqtt(void);
+void readAndPublishSensors(void);
 
 // --------------------------- CONFIG INIT ----------------------------
 /*TIPOS*/

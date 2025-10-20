@@ -6,26 +6,22 @@
 
 unsigned long lastSensorRead = 0;
 const unsigned long SENSOR_INTERVAL = 5000; // Intervalo de leitura dos sensores (5 segundos)
-float simulatedTemp = 25.0; // Temperatura simulada inicial
   
 //Prototypes
 void init_serial(void);
 void init_pins(void);
 void init_wifi(void);
-void init_mqtt(void);
-void reconnect_wifi(void); 
 
-float readTemperature(void);
  
 /* 
  *  Implementações das funções
  */
 void setup() {
     init_serial();
-    //init_pins();
     init_wifi();
     init_mqtt();
-    
+    init_pins();
+
     Serial.println("====================================");
     Serial.println("Sistema IoT ESP32 Iniciado!");
     Serial.println("====================================");
@@ -40,11 +36,11 @@ void init_serial() {
 
 /// @brief Inicializacao
 void init_pins() {
-    pinMode(PIN_LED, OUTPUT);
-    pinMode(PIN_BUTTON, INPUT_PULLUP);
-    pinMode(PIN_TEMP_SENSOR, INPUT);
+    // pinMode(PIN_LED, OUTPUT);
+    // pinMode(PIN_BUTTON, INPUT_PULLUP);
+    // pinMode(PIN_TEMP_SENSOR, INPUT);
     
-    digitalWrite(PIN_LED, LOW); // LED inicia desligado
+    // digitalWrite(PIN_LED, LOW); // LED inicia desligado
     Serial.println("Pinos configurados!");
 }
  
@@ -63,28 +59,23 @@ void init_wifi(void) {
 
 void loop() {   
     // Garante funcionamento das conexões WiFi e ao broker MQTT
-    verifica_conexoes_wifi_mqtt();
-    
+    verifica_conexoes_wifi_mqtt(); // <-- reativa verificação/reconexão
+
     // Ler e publicar dados dos sensores periodicamente
     unsigned long currentMillis = millis();
     if (currentMillis - lastSensorRead >= SENSOR_INTERVAL) {
         lastSensorRead = currentMillis;
-        readAndPublishSensors();
+        readAndPublishSensors(); // <-- ative se quiser publicar periodicamente
     }
-    
-    // Teste manual com botão (publicar imediatamente)
-    if (digitalRead(PIN_BUTTON) == LOW) {
-        delay(50); // Debounce
-        if (digitalRead(PIN_BUTTON) == LOW) {
-            Serial.println("[BOTÃO] Publicação manual acionada!");
-            readAndPublishSensors();
-            while(digitalRead(PIN_BUTTON) == LOW); // Aguarda soltar
-        }
+
+    // Keep-alive da comunicação com broker MQTT (apenas se conectado)
+    if (MQTT.connected()) {
+        MQTT.loop();
+    } else {
+        // opcional: pequena espera para evitar loop apertado durante reconexão
+        delay(50);
     }
-    
-    // Keep-alive da comunicação com broker MQTT
-    MQTT.loop();
     
     // Pequeno delay para não sobrecarregar
-    delay(100);
+    delay(50);
 }
