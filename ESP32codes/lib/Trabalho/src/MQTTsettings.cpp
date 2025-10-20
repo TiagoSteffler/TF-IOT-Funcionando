@@ -1,28 +1,21 @@
 #include <Trabalho.hpp>
 
+// Definições únicas das variáveis de configuração
+char BROKER_MQTT[64] = "192.168.2.100";
+int BROKER_PORT = 1883;
+char SSID[32] = "iot2022";
+char PASSWORD[64] = "S3nhab0@";
+
 WiFiClient espClient;
 PubSubClient MQTT(espClient);
 
-void mqtt_callback(char* topic, byte* payload, unsigned int length);
-void verifica_conexoes_wifi_mqtt(void);
-void readAndPublishSensors(void);
-
-/// @brief Inicializacao do MQTT
-void init_mqtt(void) {
-    /* informa a qual broker e porta deve ser conectado */
-    MQTT.setServer(BROKER_MQTT, BROKER_PORT); 
-    /* atribui função de callback (função chamada quando qualquer informação do 
-    tópico subescrito chega) */
-    MQTT.setCallback(mqtt_callback);            
-}
-  
 /* Função: função de callback 
  *          esta função é chamada toda vez que uma informação de 
  *          um dos tópicos subescritos chega)
  * Parâmetros: topic, payload, length
  * Retorno: nenhum
  */
-void mqtt_callback(char* topic, byte* payload, unsigned int length) 
+static void mqtt_callback(char* topic, byte* payload, unsigned int length) 
 {
     String msg = "";
  
@@ -41,11 +34,11 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length)
     
     // Controle do LED baseado no comando recebido
     if (msg.toInt() == 1) {
-        digitalWrite(PIN_LED, HIGH);
+        //digitalWrite(PIN_LED, HIGH);
         Serial.println("[AÇÃO] LED LIGADO");
     } 
     else if (msg.toInt() == 0) {
-        digitalWrite(PIN_LED, LOW);
+        //digitalWrite(PIN_LED, LOW);
         Serial.println("[AÇÃO] LED DESLIGADO");
     }
     else {
@@ -53,6 +46,16 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length)
     }
     Serial.println("====================================");
 }
+
+/// @brief Inicializacao do MQTT
+void init_mqtt() {
+    /* informa a qual broker e porta deve ser conectado */
+    MQTT.setServer(BROKER_MQTT, BROKER_PORT); 
+    /* atribui função de callback (função chamada quando qualquer informação do 
+    tópico subescrito chega) */
+    MQTT.setCallback(mqtt_callback);            
+}
+  
   
 /* Função: reconecta-se ao broker MQTT (caso ainda não esteja conectado ou em caso de a conexão cair)
  *          em caso de sucesso na conexão ou reconexão, o subscribe dos tópicos é refeito.
@@ -91,18 +94,33 @@ void reconnect_wifi()
     if (WiFi.status() == WL_CONNECTED)
         return;
          
-    WiFi.begin(SSID, PASSWORD);
-     
-    while (WiFi.status() != WL_CONNECTED) 
-    {
-        delay(100);
-        Serial.print(".");
+   Serial.println();
+    Serial.println("Iniciando WiFiManager (provisionamento)...");
+    WiFiManager wm;
+    // wm.resetSettings(); // descomente para limpar configurações disponíveis no início
+
+    // adicionar parâmetros personalizados para editar broker/porta via portal
+    WiFiManagerParameter customBroker("broker", "MQTT Broker", BROKER_MQTT, sizeof(BROKER_MQTT));
+    char portStr[8];
+    snprintf(portStr, sizeof(portStr), "%d", BROKER_PORT);
+    WiFiManagerParameter customPort("port", "MQTT Port", portStr, sizeof(portStr));
+
+    wm.addParameter(&customBroker);
+    wm.addParameter(&customPort);
+
+    // cria AP se não conseguir conectar; bloqueante até provisionar
+    if (!wm.autoConnect("ESP32_AP")) {
+        Serial.println("Falha no autoConnect. Reiniciando...");
+        delay(2000);
+        ESP.restart();
     }
-   
-    Serial.println();
-    Serial.print("Conectado com sucesso na rede ");
-    Serial.print(SSID);
-    Serial.println("IP obtido: ");
+
+    // após conexão / submit, copiar valores dos parâmetros para as variáveis
+    strncpy(BROKER_MQTT, customBroker.getValue(), sizeof(BROKER_MQTT) - 1);
+    BROKER_MQTT[sizeof(BROKER_MQTT) - 1] = '\0';
+    BROKER_PORT = atoi(customPort.getValue());
+
+    Serial.println("Conectado na rede:");
     Serial.println(WiFi.localIP());
 }
  
@@ -131,7 +149,7 @@ void readAndPublishSensors(void)
     StaticJsonDocument<256> doc;
     
     // Ler temperatura
-    float temp = readTemperature();
+    float temp = 0;
     doc["temperature"] = temp;
     
     // Adicionar timestamp
