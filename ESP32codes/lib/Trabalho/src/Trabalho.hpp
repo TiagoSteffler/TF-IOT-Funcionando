@@ -2,18 +2,28 @@
 #define TRABALHO_HPP
 using namespace std;
 // ----------------------------- INCLUDES ----------------------------
+#include <Arduino.h>   
+#include <Wire.h>   
+
+#include <vector>
+#include <string>  
+// Wifi + MQTT + JSON
 #include <WiFi.h>          
 #include <PubSubClient.h>  
-#include <Arduino.h>        
 #include <ArduinoJson.h>    
-
+// MPU6050
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
+// APDS9960
+#include <Adafruit_APDS9960.h>
+// Keypad 4x4
 #include <Keypad.h>
+// Servo SG90
+#include <Servo.h>
+// DS18B20
+#include <OneWire.h>  
+#include <DallasTemperature.h>
 
-#include <Wire.h>
-#include <vector>
-#include <string>
 
 
 // ---------------------------- CONFIGS MQTT --------------------------

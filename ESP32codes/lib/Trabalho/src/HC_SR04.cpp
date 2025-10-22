@@ -20,14 +20,16 @@ HCSR04::HCSR04(int trigPin, int echoPin) {
 
 HCSR04::~HCSR04() {}
 
-HCSR04::getDistance() {
-    digitalWrite(trigPin, LOW);
-    digitalWrite(trigPin, HIGH);
+double HCSR04::getDistance() {
+    // Ensure trigger is low, then send a 10µs pulse
+    digitalWrite(this->triggerPin, LOW);
+    delayMicroseconds(2);
+    digitalWrite(this->triggerPin, HIGH);
     delayMicroseconds(10);
-    digitalWrite(trigPin, LOW);
+    digitalWrite(this->triggerPin, LOW);
 
-    double duration = pulseIn(echoPin, HIGH);
-    distance = duration * 0.034 / 2;  // cm
+    unsigned long duration = pulseIn(this->echoPin, HIGH);
+    double distance = duration * 0.034 / 2.0;  // cm
 
     return distance;
 }
