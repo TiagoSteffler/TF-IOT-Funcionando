@@ -9,7 +9,7 @@ using namespace std;
 #include <ArduinoJson.h>    
 
 #include <Adafruit_MPU6050.h>
-#include <Adafruit_Sensor.h>
+#include <Adafruit_Sensor.h> 
 #include <Keypad.h>
 
 #include <Wire.h>
@@ -17,15 +17,19 @@ using namespace std;
 #include <string>
 
 
+#include <Preferences.h> // Para armazenamento NVS das configurações MQTT
+
 // ---------------------------- CONFIGS MQTT --------------------------
-#define ID_MQTT  "ESP32_005" 
+// #define ID_MQTT  "ESP32_005" // Removido, usando ID_DEVICE em vez disso
+
 #define TOPICO_SUBSCRIBE "/iot2025/led/70"
 #define TOPICO_PUBLISH   "/iot2025/sensors/70" 
 
-extern char BROKER_MQTT[]; // Alterar para IP do servidor
+extern char BROKER_MQTT[];
 extern int BROKER_PORT;
-extern char SSID[]; // Alterar para sua rede Wi-Fi
-extern char PASSWORD[]; // Alterar para sua senha Wi-Fi
+extern char SSID[];
+extern char PASSWORD[];
+extern char ID_DEVICE[];
 
 /* Objetos compartilhados (definidos em MQTTsettings.cpp) */
 
@@ -37,6 +41,8 @@ void init_mqtt(void);
 void reconnect_mqtt(void);
 void reconnect_wifi(void);
 void verifica_conexoes_wifi_mqtt(void);
+void loadMQTTSettings(void); // Declaração da função para carregar configurações MQTT
+void saveMQTTSettings(void); // Declaração da função para salvar configurações MQTT
 void readAndPublishSensors(void);
 
 // --------------------------- CONFIG INIT ----------------------------

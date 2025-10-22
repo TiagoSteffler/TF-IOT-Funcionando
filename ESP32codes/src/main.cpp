@@ -18,6 +18,7 @@ void init_wifi(void);
  */
 void setup() {
     init_serial();
+    loadMQTTSettings(); // Carrega as configurações MQTT salvas da NVS
     init_wifi();
     init_mqtt();
     init_pins();
@@ -36,11 +37,6 @@ void init_serial() {
 
 /// @brief Inicializacao
 void init_pins() {
-    // pinMode(PIN_LED, OUTPUT);
-    // pinMode(PIN_BUTTON, INPUT_PULLUP);
-    // pinMode(PIN_TEMP_SENSOR, INPUT);
-    
-    // digitalWrite(PIN_LED, LOW); // LED inicia desligado
     Serial.println("Pinos configurados!");
 }
  

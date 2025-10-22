@@ -1,10 +1,15 @@
 #include <Trabalho.hpp>
 
 // Definições únicas das variáveis de configuração
-char BROKER_MQTT[64] = "192.168.2.100";
+char BROKER_MQTT[64] = "192.168.0.77"; // Valor padrão
 int BROKER_PORT = 1883;
 char SSID[32] = "iot2022";
 char PASSWORD[64] = "S3nhab0@";
+char ID_DEVICE[32] = "ESP32_005"; // Valor padrão
+
+// Objeto Preferences para armazenamento NVS (Non-Volatile Storage)
+Preferences preferences;
+#define NVS_NAMESPACE "mqtt_config" // Namespace para as configurações MQTT na NVS
 
 WiFiClient espClient;
 PubSubClient MQTT(espClient);
@@ -47,13 +52,60 @@ static void mqtt_callback(char* topic, byte* payload, unsigned int length)
     Serial.println("====================================");
 }
 
+/* Função: Carrega as configurações MQTT salvas na NVS
+ * Parâmetros: nenhum
+ * Retorno: nenhum
+ */
+void loadMQTTSettings() {
+    preferences.begin(NVS_NAMESPACE, false); // Abre a NVS para leitura/escrita
+    
+    String savedBroker = preferences.getString("broker", "");
+    if (savedBroker.length() > 0) {
+        strncpy(BROKER_MQTT, savedBroker.c_str(), sizeof(BROKER_MQTT) - 1);
+        BROKER_MQTT[sizeof(BROKER_MQTT) - 1] = '\0';
+        Serial.print("[NVS] Loaded BROKER_MQTT: ");
+        Serial.println(BROKER_MQTT);
+    }
+
+    int savedPort = preferences.getInt("port", 0);
+    if (savedPort != 0) {
+        BROKER_PORT = savedPort;
+        Serial.print("[NVS] Loaded BROKER_PORT: ");
+        Serial.println(BROKER_PORT);
+    }
+
+    String savedID = preferences.getString("device_id", "");
+    if (savedID.length() > 0) {
+        strncpy(ID_DEVICE, savedID.c_str(), sizeof(ID_DEVICE) - 1);
+        ID_DEVICE[sizeof(ID_DEVICE) - 1] = '\0';
+        Serial.print("[NVS] Loaded ID_DEVICE: ");
+        Serial.println(ID_DEVICE);
+    }
+    
+    preferences.end();
+}
+
+/* Função: Salva as configurações MQTT na NVS
+ * Parâmetros: nenhum
+ * Retorno: nenhum
+ */
+void saveMQTTSettings() {
+    preferences.begin(NVS_NAMESPACE, false); // Abre a NVS para leitura/escrita
+    preferences.putString("broker", BROKER_MQTT);
+    preferences.putInt("port", BROKER_PORT);
+    preferences.putString("device_id", ID_DEVICE);
+    preferences.end();
+    Serial.println("[NVS] MQTT settings saved.");
+}
+
 /// @brief Inicializacao do MQTT
 void init_mqtt() {
     /* informa a qual broker e porta deve ser conectado */
     MQTT.setServer(BROKER_MQTT, BROKER_PORT); 
     /* atribui função de callback (função chamada quando qualquer informação do 
     tópico subescrito chega) */
-    MQTT.setCallback(mqtt_callback);            
+    MQTT.setCallback(mqtt_callback);
+    // O ID do cliente MQTT é definido durante a reconexão
 }
   
   
@@ -64,11 +116,12 @@ void init_mqtt() {
  */
 void reconnect_mqtt(void) 
 {
+    int i = 0;
     while (!MQTT.connected()) 
     {
         Serial.print("* Tentando se conectar ao Broker MQTT: ");
         Serial.println(BROKER_MQTT);
-        if (MQTT.connect(ID_MQTT)) 
+        if (MQTT.connect(ID_DEVICE)) // Usa ID_DEVICE como o ID do cliente MQTT
         {
             Serial.println("Conectado com sucesso ao broker MQTT!");
             MQTT.subscribe(TOPICO_SUBSCRIBE); 
@@ -79,6 +132,15 @@ void reconnect_mqtt(void)
             Serial.println("Falha ao reconectar no broker.");
             Serial.println("Havera nova tentatica de conexao em 2s");
             delay(2000);
+            i++;
+            if (i>=5)
+            {
+                WiFiManager wm;
+                wm.resetSettings(); // Limpa configurações WiFi para forçar novo provisionamento
+                Serial.println("Reiniciando dispositivo para novo provisionamento...");
+                ESP.restart();
+            }
+            
         }
     }
 }
@@ -87,6 +149,7 @@ void reconnect_mqtt(void)
  * Parâmetros: nenhum
  * Retorno: nenhum
 */
+
 void reconnect_wifi() 
 {
     /* se já está conectado a rede WI-FI, nada é feito. 
@@ -97,6 +160,9 @@ void reconnect_wifi()
    Serial.println();
     Serial.println("Iniciando WiFiManager (provisionamento)...");
     WiFiManager wm;
+
+    // Registra o callback para salvar os parâmetros personalizados após a submissão do portal WiFiManager
+    wm.setSaveConfigCallback(saveMQTTSettings);
     // wm.resetSettings(); // descomente para limpar configurações disponíveis no início
 
     // adicionar parâmetros personalizados para editar broker/porta via portal
@@ -104,9 +170,11 @@ void reconnect_wifi()
     char portStr[8];
     snprintf(portStr, sizeof(portStr), "%d", BROKER_PORT);
     WiFiManagerParameter customPort("port", "MQTT Port", portStr, sizeof(portStr));
+    WiFiManagerParameter customID("id", "Device ID", ID_DEVICE, sizeof(ID_DEVICE));
 
     wm.addParameter(&customBroker);
     wm.addParameter(&customPort);
+    wm.addParameter(&customID);
 
     // cria AP se não conseguir conectar; bloqueante até provisionar
     if (!wm.autoConnect("ESP32_AP")) {
@@ -119,6 +187,8 @@ void reconnect_wifi()
     strncpy(BROKER_MQTT, customBroker.getValue(), sizeof(BROKER_MQTT) - 1);
     BROKER_MQTT[sizeof(BROKER_MQTT) - 1] = '\0';
     BROKER_PORT = atoi(customPort.getValue());
+    strncpy(ID_DEVICE, customID.getValue(), sizeof(ID_DEVICE) - 1);
+    ID_DEVICE[sizeof(ID_DEVICE) - 1] = '\0';
 
     Serial.println("Conectado na rede:");
     Serial.println(WiFi.localIP());
