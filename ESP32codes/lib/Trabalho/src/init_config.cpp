@@ -1,4 +1,11 @@
 #include <Trabalho.hpp>
+
+// Objeto Preferences para armazenamento NVS (Non-Volatile Storage)
+Preferences preferences;
+#define NVS_NAMESPACE_JSON "json_config" // Namespace para as configurações MQTT na NVS
+#define SENSOR_CONFIG_SIZE 1024
+char SENSOR_CONFIG[SENSOR_CONFIG_SIZE] = "[]";
+
 vector<Sensor> init_sensor_config(const char* json_config){
   StaticJsonDocument<1024> doc;
   DeserializationError error = deserializeJson(doc, json_config);
@@ -83,4 +90,32 @@ vector<Sensor> init_sensor_config(const char* json_config){
   }
   
   return sensores;
+}
+
+
+void loadJSONSensorConfig() {
+  Serial.println("[NVS] Loading sensor configuration from NVS...");
+    preferences.begin(NVS_NAMESPACE_JSON, false); // Abre a NVS para leitura/escrita
+    String savedConfig = preferences.getString("sensor_config", "");
+    char buffer[SENSOR_CONFIG_SIZE];
+    savedConfig.toCharArray(buffer, sizeof(buffer));
+
+    if (savedConfig.length() > 0) {
+        strncpy(SENSOR_CONFIG, buffer, SENSOR_CONFIG_SIZE - 1);
+        SENSOR_CONFIG[sizeof(SENSOR_CONFIG) - 1] = '\0';
+        Serial.print("[NVS] Loaded Sensor Configuration: ");
+        Serial.println(SENSOR_CONFIG);
+    }else
+    {
+      Serial.println("[NVS] No saved sensor configuration found.");
+    }
+    
+    preferences.end();
+}
+
+void saveJSONSensorConfig(const char* json_config) {
+    preferences.begin(NVS_NAMESPACE_JSON, false); // Abre a NVS para leitura/escrita
+    preferences.putString("sensor_config", json_config);
+    preferences.end();
+    Serial.println("[NVS] Sensor configuration saved.");
 }

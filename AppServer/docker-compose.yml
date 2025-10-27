@@ -33,19 +33,6 @@ services:
     networks:
       - iot-net
 
-  # 3. Grafana (Visualização) 
-  grafana:
-    image: grafana/grafana-oss:latest # Imagem oficial do Grafana
-    container_name: grafana
-    ports:
-      - "3000:3000" # Porta da UI do Grafana
-    volumes:
-      - grafana_data:/var/lib/grafana # Volume para persistir dashboards e configurações
-    depends_on:
-      - influxdb # Garante que o Grafana só inicie depois do InfluxDB
-    networks:
-      - iot-net
-
   # 4. (Opcional, mas recomendado) Serviço de Ingestão
   # Este é o seu script Python/Node.js que lê do Mosquitto e escreve no InfluxDB
   ingestor:
@@ -74,6 +61,5 @@ networks:
 
 volumes:
   influxdb_data:
-  grafana_data:
   mosquitto_data:
   mosquitto_log:

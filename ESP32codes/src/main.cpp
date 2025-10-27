@@ -6,6 +6,8 @@
 
 unsigned long lastSensorRead = 0;
 const unsigned long SENSOR_INTERVAL = 5000; // Intervalo de leitura dos sensores (5 segundos)
+
+vector<Sensor> sensores;
   
 //Prototypes
 void init_serial(void);
@@ -21,7 +23,16 @@ void setup() {
     loadMQTTSettings(); // Carrega as configurações MQTT salvas da NVS
     init_wifi();
     init_mqtt();
-    init_pins();
+    try
+    {
+        loadJSONSensorConfig();
+    }
+    catch(const exception& e)
+    {
+        Serial.println("[NVS] Erro ao carregar configuração dos sensores da NVS.");
+    }
+    
+    sensores = init_sensor_config(SENSOR_CONFIG);
 
     Serial.println("====================================");
     Serial.println("Sistema IoT ESP32 Iniciado!");
@@ -36,9 +47,7 @@ void init_serial() {
 }
 
 /// @brief Inicializacao
-void init_pins() {
-    Serial.println("Pinos configurados!");
-}
+
  
 /// @brief Inicializacao da conexao Wi-Fi
 void init_wifi(void) {

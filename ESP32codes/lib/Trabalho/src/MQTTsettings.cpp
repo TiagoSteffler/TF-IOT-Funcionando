@@ -7,12 +7,32 @@ char SSID[32] = "iot2022";
 char PASSWORD[64] = "S3nhab0@";
 char ID_DEVICE[32] = "ESP32_005"; // Valor padrão
 
-// Objeto Preferences para armazenamento NVS (Non-Volatile Storage)
-Preferences preferences;
-#define NVS_NAMESPACE "mqtt_config" // Namespace para as configurações MQTT na NVS
+#define NVS_NAMESPACE_MQTT "mqtt_config" // Namespace para as configurações MQTT na NVS
 
 WiFiClient espClient;
 PubSubClient MQTT(espClient);
+
+vector<string> split(const string& s, char delimiter) {
+    vector<string> tokens;
+    size_t start = 0; // Início da substring atual
+    size_t end = s.find(delimiter); // Posição do primeiro delimitador
+
+    while (end != string::npos) { // std::string::npos significa "não encontrado"
+        // Extrai o token do início (start) até a posição (end)
+        tokens.push_back(s.substr(start, end - start));
+        
+        // Atualiza o início para a posição DEPOIS do delimitador
+        start = end + 1;
+        
+        // Procura o PRÓXIMO delimitador, começando de 'start'
+        end = s.find(delimiter, start);
+    }
+
+    // Pega o último token (da última posição 'start' até o fim da string)
+    tokens.push_back(s.substr(start, string::npos));
+
+    return tokens;
+}
 
 /* Função: função de callback 
  *          esta função é chamada toda vez que uma informação de 
@@ -24,32 +44,33 @@ static void mqtt_callback(char* topic, byte* payload, unsigned int length)
 {
     String msg = "";
  
-    // Obter a string do payload recebido
+    vector<string> tokens = split(string(topic), '/');
+    if (tokens.size() < 3) {
+        Serial.println("[MQTT RECEBIDO] Tópico inválido.");
+        return;
+    }
+    string id_device = tokens[1];
+    string comando = tokens[2];
+
     for(int i = 0; i < length; i++) 
     {
        char c = (char)payload[i];
        msg += c;
     }
-    
-    Serial.println("====================================");
-    Serial.print("[MQTT RECEBIDO] Tópico: ");
-    Serial.println(topic);
-    Serial.print("[MQTT RECEBIDO] Mensagem: ");
-    Serial.println(msg);
-    
-    // Controle do LED baseado no comando recebido
-    if (msg.toInt() == 1) {
-        //digitalWrite(PIN_LED, HIGH);
-        Serial.println("[AÇÃO] LED LIGADO");
-    } 
-    else if (msg.toInt() == 0) {
-        //digitalWrite(PIN_LED, LOW);
-        Serial.println("[AÇÃO] LED DESLIGADO");
+
+    if (comando.compare("put")==0)
+    {
+        saveJSONSensorConfig(msg.c_str());
+        ESP.restart();
     }
-    else {
-        Serial.println("[AVISO] Comando não reconhecido");
+    else if (comando.compare("get")==0)
+    {
+        string callback_topic = "callback/" + id_device + "/config";
+        MQTT.publish(callback_topic.c_str(), SENSOR_CONFIG);
+        Serial.println(SENSOR_CONFIG);
     }
-    Serial.println("====================================");
+
+    return;
 }
 
 /* Função: Carrega as configurações MQTT salvas na NVS
@@ -57,7 +78,7 @@ static void mqtt_callback(char* topic, byte* payload, unsigned int length)
  * Retorno: nenhum
  */
 void loadMQTTSettings() {
-    preferences.begin(NVS_NAMESPACE, false); // Abre a NVS para leitura/escrita
+    preferences.begin(NVS_NAMESPACE_MQTT, false); // Abre a NVS para leitura/escrita
     
     String savedBroker = preferences.getString("broker", "");
     if (savedBroker.length() > 0) {
@@ -90,7 +111,7 @@ void loadMQTTSettings() {
  * Retorno: nenhum
  */
 void saveMQTTSettings() {
-    preferences.begin(NVS_NAMESPACE, false); // Abre a NVS para leitura/escrita
+    preferences.begin(NVS_NAMESPACE_MQTT, false); // Abre a NVS para leitura/escrita
     preferences.putString("broker", BROKER_MQTT);
     preferences.putInt("port", BROKER_PORT);
     preferences.putString("device_id", ID_DEVICE);
@@ -124,7 +145,11 @@ void reconnect_mqtt(void)
         if (MQTT.connect(ID_DEVICE)) // Usa ID_DEVICE como o ID do cliente MQTT
         {
             Serial.println("Conectado com sucesso ao broker MQTT!");
-            MQTT.subscribe(TOPICO_SUBSCRIBE); 
+            string topico_subscribe = string(TOPICO_SUBSCRIBE_PREFIX) + "/" + string(ID_DEVICE) + "/#";
+            Serial.println("Subscribing to topic: ");
+            Serial.println(topico_subscribe.c_str());
+            MQTT.subscribe(topico_subscribe.c_str()); // Inscreve no tópico específico do dispositivo
+            return;
             break;
         } 
         else

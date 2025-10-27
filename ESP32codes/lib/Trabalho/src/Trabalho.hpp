@@ -7,6 +7,7 @@ using namespace std;
 
 #include <vector>
 #include <string>  
+
 // Wifi + MQTT + JSON
 #include <WiFi.h>
 #include <WiFiManager.h>      
@@ -29,10 +30,12 @@ using namespace std;
 
 #include <Preferences.h> // Para armazenamento NVS das configurações MQTT
 
+extern Preferences preferences; // Objeto para armazenamento NVS
+
 // ---------------------------- CONFIGS MQTT --------------------------
 // #define ID_MQTT  "ESP32_005" // Removido, usando ID_DEVICE em vez disso
 
-#define TOPICO_SUBSCRIBE "/iot2025/led/70"
+#define TOPICO_SUBSCRIBE_PREFIX "config"
 #define TOPICO_PUBLISH_PREFIX "sensor" 
 
 extern char BROKER_MQTT[];
@@ -61,12 +64,6 @@ typedef int atributo_1_t;
 typedef int atributo_2_t;
 typedef int atributo_3_t;
 typedef int atributo_4_t;
-
-/*VARS*/
-//char* json_config; //JSON recebido por protocolo
-/*FUNÇÕES*/
-
-void init_sensor_config(char* json_config);
 /*
 *ENUM JSON
 *O padrão descrito será utilizado pelo json de configuração inicial
@@ -115,6 +112,18 @@ typedef struct dado_sensor_t
     atributo_4_t atributo4;
 
 }Sensor;
+
+/*JSON*/
+extern char SENSOR_CONFIG[]; // JSON de configuração dos sensores
+void loadJSONSensorConfig();
+void saveJSONSensorConfig(const char* json_config);
+
+/*VARS*/
+//char* json_config; //JSON recebido por protocolo
+/*FUNÇÕES*/
+
+vector<Sensor> init_sensor_config(const char* json_config);
+
 
 //--------------------------------------------------------------------
 

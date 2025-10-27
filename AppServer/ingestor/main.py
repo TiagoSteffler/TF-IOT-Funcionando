@@ -12,7 +12,7 @@ INFLUXDB_BUCKET = os.getenv('INFLUXDB_BUCKET')
 MQTT_BROKER_HOST = os.getenv('MQTT_BROKER_HOST')
 MQTT_BROKER_PORT = int(os.getenv('MQTT_BROKER_PORT'))
 
-# Tópico MQTT para escutar (ex: todos os tópicos dentro de 'grupo1')
+# Tópico MQTT para escutar
 MQTT_TOPIC = "sensor/#" 
 
 # --- Conexão com InfluxDB ---
