@@ -1,7 +1,7 @@
 #include <Trabalho.hpp>
 
 // Definições únicas das variáveis de configuração
-char BROKER_MQTT[64] = "192.168.0.77"; // Valor padrão
+char BROKER_MQTT[64] = "192.168.0.105"; // Valor padrão
 int BROKER_PORT = 1883;
 char SSID[32] = "iot2022";
 char PASSWORD[64] = "S3nhab0@";
@@ -161,8 +161,6 @@ void reconnect_wifi()
     Serial.println("Iniciando WiFiManager (provisionamento)...");
     WiFiManager wm;
 
-    // Registra o callback para salvar os parâmetros personalizados após a submissão do portal WiFiManager
-    wm.setSaveConfigCallback(saveMQTTSettings);
     // wm.resetSettings(); // descomente para limpar configurações disponíveis no início
 
     // adicionar parâmetros personalizados para editar broker/porta via portal
@@ -189,6 +187,7 @@ void reconnect_wifi()
     BROKER_PORT = atoi(customPort.getValue());
     strncpy(ID_DEVICE, customID.getValue(), sizeof(ID_DEVICE) - 1);
     ID_DEVICE[sizeof(ID_DEVICE) - 1] = '\0';
+    saveMQTTSettings();
 
     Serial.println("Conectado na rede:");
     Serial.println(WiFi.localIP());
@@ -215,29 +214,17 @@ void verifica_conexoes_wifi_mqtt(void)
  */
 void readAndPublishSensors(void)
 {
-    // Criar JSON com dados dos sensores
-    StaticJsonDocument<256> doc;
+    float temp = 15.0; // Simulação de leitura de sensor de temperatura
     
-    // Ler temperatura
-    float temp = 0;
-    doc["temperature"] = temp;
-    
-    // Adicionar timestamp
-    doc["timestamp"] = millis();
-    
-    // Serializar JSON
-    char jsonBuffer[256];
-    serializeJson(doc, jsonBuffer);
-    
+    string topico = string(TOPICO_PUBLISH_PREFIX) + "/" + string(ID_DEVICE) + "/id_sensor" + "/temperatura";
     // Publicar via MQTT
-    if (MQTT.publish(TOPICO_PUBLISH, jsonBuffer)) {
+    if (MQTT.publish(topico.c_str(), String(temp).c_str())) {
         Serial.println("------------------------------------");
-        Serial.println("[SENSORES] Dados publicados:");
-        Serial.print("  Temperatura: ");
+        Serial.println("");
+        Serial.print(topico.c_str());
+        Serial.print(" -> ");
         Serial.print(temp);
-        Serial.println(" °C");
-        Serial.print("  JSON: ");
-        Serial.println(jsonBuffer);
+        Serial.println("");
         Serial.println("------------------------------------");
     } else {
         Serial.println("[ERRO] Falha ao publicar dados!");

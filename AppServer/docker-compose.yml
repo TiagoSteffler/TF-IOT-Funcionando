@@ -1,0 +1,79 @@
+services:
+  # 1. InfluxDB (Banco de Dados Time-Series)
+  influxdb:
+    image: influxdb:2.7 # Imagem oficial do InfluxDB v2
+    container_name: influxdb
+    ports:
+      - "8086:8086" # Porta da API e da UI do InfluxDB
+    volumes:
+      - influxdb_data:/var/lib/influxdb2 # Volume para persistir os dados
+    environment:
+      # --- Variáveis para setup inicial do InfluxDB ---
+      # CUIDADO: Troque os valores de senha e token!
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=senhaforte123
+      - DOCKER_INFLUXDB_INIT_ORG=ufsm-iot # Nome da sua organização (ex: nome do grupo)
+      - DOCKER_INFLUXDB_INIT_BUCKET=sensores # "Bucket" (banco) onde os dados serão salvos
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=meu-token-super-secreto
+    networks:
+      - iot-net
+
+  # 2. Mosquitto (Broker MQTT)
+  mosquitto:
+    image: eclipse-mosquitto:latest # Imagem oficial do Mosquitto
+    container_name: mosquitto
+    ports:
+      - "1883:1883" # Porta padrão do MQTT
+      #- "9001:9001" # Porta para MQTT sobre WebSockets (útil para debug)
+    volumes:
+      - ./mosquitto/config:/mosquitto/config # Monta o arquivo de configuração
+      #- mosquitto_data:/mosquitto/data # Volume para persistir dados (ex: mensagens retidas)
+      #- mosquitto_log:/mosquitto/log # Volume para logs
+    networks:
+      - iot-net
+
+  # 3. Grafana (Visualização) 
+  grafana:
+    image: grafana/grafana-oss:latest # Imagem oficial do Grafana
+    container_name: grafana
+    ports:
+      - "3000:3000" # Porta da UI do Grafana
+    volumes:
+      - grafana_data:/var/lib/grafana # Volume para persistir dashboards e configurações
+    depends_on:
+      - influxdb # Garante que o Grafana só inicie depois do InfluxDB
+    networks:
+      - iot-net
+
+  # 4. (Opcional, mas recomendado) Serviço de Ingestão
+  # Este é o seu script Python/Node.js que lê do Mosquitto e escreve no InfluxDB
+  ingestor:
+    build:
+      context: ./ingestor # Pasta onde estarão seu Dockerfile e script Python
+    container_name: ingestor_service
+    depends_on:
+      - mosquitto
+      - influxdb
+    environment:
+      # Passa as credenciais do InfluxDB para seu script
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=meu-token-super-secreto # Use o mesmo token definido acima
+      - INFLUXDB_ORG=ufsm-iot
+      - INFLUXDB_BUCKET=sensores
+      - MQTT_BROKER_HOST=mosquitto # O script vai se conectar ao 'mosquitto'
+      - MQTT_BROKER_PORT=1883
+    restart: always
+    networks:
+      - iot-net
+
+# Definição das redes e volumes
+networks:
+  iot-net:
+    driver: bridge
+
+volumes:
+  influxdb_data:
+  grafana_data:
+  mosquitto_data:
+  mosquitto_log:

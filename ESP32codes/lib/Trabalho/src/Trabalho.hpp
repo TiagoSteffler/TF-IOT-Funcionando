@@ -20,7 +20,7 @@ using namespace std;
 // Keypad 4x4
 #include <Keypad.h>
 // Servo SG90
-#include <Servo.h>
+// #include <Servo.h>
 // DS18B20
 #include <OneWire.h>  
 #include <DallasTemperature.h>
@@ -33,7 +33,7 @@ using namespace std;
 // #define ID_MQTT  "ESP32_005" // Removido, usando ID_DEVICE em vez disso
 
 #define TOPICO_SUBSCRIBE "/iot2025/led/70"
-#define TOPICO_PUBLISH   "/iot2025/sensors/70" 
+#define TOPICO_PUBLISH_PREFIX "sensor" 
 
 extern char BROKER_MQTT[];
 extern int BROKER_PORT;
