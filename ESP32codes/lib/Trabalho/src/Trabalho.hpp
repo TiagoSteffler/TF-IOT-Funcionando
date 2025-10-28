@@ -7,8 +7,10 @@ using namespace std;
 
 #include <vector>
 #include <string>  
+
 // Wifi + MQTT + JSON
-#include <WiFi.h>          
+#include <WiFi.h>
+#include <WiFiManager.h>      
 #include <PubSubClient.h>  
 #include <ArduinoJson.h>    
 // MPU6050
@@ -19,12 +21,16 @@ using namespace std;
 // Keypad 4x4
 #include <Keypad.h>
 // Servo SG90
-#include <ESP32Servo.h>
+#include <Servo.h>
 // DS18B20
 #include <OneWire.h>  
 #include <DallasTemperature.h>
 
 
+
+#include <Preferences.h> // Para armazenamento NVS das configurações MQTT
+
+extern Preferences preferences; // Objeto para armazenamento NVS
 
 // ---------------------------- CONFIGS MQTT --------------------------
 #define ID_MQTT  "ESP32_005" 
@@ -35,22 +41,12 @@ int BROKER_PORT = 1883;
 const char* SSID = "iot2022"; // Alterar para sua rede Wi-Fi
 const char* PASSWORD = "S3nhab0@"; // Alterar para sua senha Wi-Fi
 
-// -------------------------- CONFIG DEBUG -------------------------
-#define DEBUGCOMM true      // valores dummy de sensores para comunicacao
-#define DEBUGSENS true      // imprime valores lidos dos sensores no monitor serial
-
 // --------------------------- CONFIG INIT ----------------------------
 /*TIPOS*/
 typedef int atributo_1_t;
 typedef int atributo_2_t;
 typedef int atributo_3_t;
 typedef int atributo_4_t;
-
-/*VARS*/
-//char* json_config; //JSON recebido por protocolo
-/*FUNÇÕES*/
-
-void init_sensor_config(char* json_config);
 /*
 *ENUM JSON
 *O padrão descrito será utilizado pelo json de configuração inicial
@@ -103,7 +99,7 @@ typedef struct dado_sensor_t {
     atributo_3_t atributo3;
     atributo_4_t atributo4;
 
-} Sensor;
+}Sensor;
 
 // Structs de leitura do MPU6050
 typedef struct mpu_read_t{

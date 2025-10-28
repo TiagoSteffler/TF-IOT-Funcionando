@@ -6,18 +6,15 @@
 
 unsigned long lastSensorRead = 0;
 const unsigned long SENSOR_INTERVAL = 5000; // Intervalo de leitura dos sensores (5 segundos)
-float simulatedTemp = 25.0; // Temperatura simulada inicial
+
+vector<Sensor> sensores;
   
 //Prototypes
 void init_serial(void);
 void init_pins(void);
 void init_wifi(void);
-void init_mqtt(void);
-void reconnect_wifi(void); 
 
-float readTemperature(void);
-
-
+ 
 /* 
  *  Implementações das funções
  */
@@ -26,10 +23,20 @@ I2C_Manager i2c; // Objeto gerenciador do I2C
 
 void setup() {
     init_serial();
-    //init_pins();
+    loadMQTTSettings(); // Carrega as configurações MQTT salvas da NVS
     init_wifi();
     init_mqtt();
+    try
+    {
+        loadJSONSensorConfig();
+    }
+    catch(const exception& e)
+    {
+        Serial.println("[NVS] Erro ao carregar configuração dos sensores da NVS.");
+    }
     
+    sensores = init_sensor_config(SENSOR_CONFIG);
+
     Serial.println("====================================");
     Serial.println("Sistema IoT ESP32 Iniciado!");
     Serial.println("====================================");
@@ -90,5 +97,5 @@ void loop() {
     //MQTT.loop();
     
     // Pequeno delay para não sobrecarregar
-    delay(100);
+    delay(50);
 }
