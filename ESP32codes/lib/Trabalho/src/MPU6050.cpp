@@ -1,26 +1,5 @@
 #include <Trabalho.hpp>
 
-/// @brief Classe do acelerometro MPU6050
-class MPU6050 {
-    private:
-        // pino e variaveis de controle
-        Adafruit_MPU6050 mpu;
-        int id, addr_pin, addr;
-        MPU_read read;
-        enum AccRange {A2G = MPU6050_RANGE_2_G, A4G = MPU6050_RANGE_4_G, A8G = MPU6050_RANGE_8_G, A16G = MPU6050_RANGE_16_G} acc_range = A8G;
-        enum GyroRange {G250DPS = MPU6050_RANGE_250_DEG, G500DPS = MPU6050_RANGE_500_DEG, G1000DPS = MPU6050_RANGE_1000_DEG, G2000DPS = MPU6050_RANGE_2000_DEG} gyro_range = G500DPS;
-        enum FilterBandwidth {B260HZ = MPU6050_BAND_260_HZ, B184HZ = MPU6050_BAND_184_HZ, B94HZ = MPU6050_BAND_94_HZ, B44HZ = MPU6050_BAND_44_HZ, B21HZ = MPU6050_BAND_21_HZ, B10HZ = MPU6050_BAND_10_HZ, B5HZ = MPU6050_BAND_5_HZ} filter_bandwidth = B5HZ;
-
-    public:
-        // contrutores/destrutores
-        MPU6050(int id, int addr_pin = -1);
-        ~MPU6050() {};
-
-        // metodos publicos
-        void setParamsMPU(AccRange acc_range, GyroRange gyro_range, FilterBandwidth filter_bandwidth);
-        MPU_read getValues();
-};
-
 /// @brief Construtor do acelerometro MPU6050
 /// @param id Identificador do sensor
 /// @param sda Pino SDA

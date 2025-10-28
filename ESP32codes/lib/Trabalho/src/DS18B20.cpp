@@ -1,24 +1,5 @@
 #include "Trabalho.hpp"
 
-/// @brief Sensor de temperatura DS18B20
-class DS18B20{
-private:
-    // variaveis de controle
-    int dataPin;
-    int id;
-    OneWire* oneWire;
-    DallasTemperature* sensors;
-    enum Unit {C, F};
-
-    public:
-    // contrutores/destrutores
-    DS18B20(int pin, int id);
-    ~DS18B20() {};
-
-    // metodos publicos
-    float readTemperature(Unit unit = C);
-};
-
 /// @brief Construtor do sensor DS18B20
 /// @param pin pino de dados do sensor
 /// @param id identificador do sensor

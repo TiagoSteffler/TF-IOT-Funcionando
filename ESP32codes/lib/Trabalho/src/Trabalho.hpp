@@ -13,20 +13,9 @@ using namespace std;
 #include <WiFiManager.h>      
 #include <PubSubClient.h>  
 #include <ArduinoJson.h>    
-// MPU6050
-#include <Adafruit_MPU6050.h>
-#include <Adafruit_Sensor.h>
-// APDS9960
-#include <Adafruit_APDS9960.h>
-// Keypad 4x4
-#include <Keypad.h>
-// Servo SG90
-#include <ESP32Servo.h>
-// DS18B20
-#include <OneWire.h>  
-#include <DallasTemperature.h>
 
 #include <Preferences.h> // Para armazenamento NVS das configurações MQTT
+#include "Sensors.hpp" // Inclui bibliotecas dos sensores
 
 extern Preferences preferences; // Objeto para armazenamento NVS
 
@@ -55,9 +44,6 @@ void saveMQTTSettings(void); // Declaração da função para salvar configuraç
 void readAndPublishSensors(void);
 
 
-// -------------------------- CONFIG DEBUG -------------------------
-#define DEBUGCOMM true      // valores dummy de sensores para comunicacao
-#define DEBUGSENS true      // imprime valores lidos dos sensores no monitor serial
 
 // --------------------------- CONFIG INIT ----------------------------
 /*TIPOS*/
@@ -119,21 +105,6 @@ typedef struct dado_sensor_t {
 
 }Sensor;
 
-// Structs de leitura do MPU6050
-typedef struct mpu_read_t{
-    float x, y, z, gx, gy, gz, temp;
-} MPU_read;
-
-
-// Struct para leitura de cor APDS9960
-typedef struct apds_color_t{
-    uint16_t r, g, b, c;
-} APDS_Color;
-
-// Struct para leitura do joystick
-typedef struct joystick_read{
-    int x, y, bot;
-} JoyRead;
 
 
 /*JSON*/
