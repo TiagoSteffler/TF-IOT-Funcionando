@@ -7,16 +7,12 @@ class Joystick{
     float xper, yper;
     uint16_t id;
 
-    typedef struct joystick_read{
-        int x, y, bot;
-    } JoyRead;
-
     public:
     Joystick(int x, int y, int bot, uint16_t id);
     JoyRead getRawValues();
     float getXfloat();
     float getYfloat();
-}
+};
 
 /// @brief Construtor do joystick
 /// @param x Pino do eixo X
@@ -34,7 +30,7 @@ Joystick::Joystick(int x, int y, int bot, uint16_t id) {
     pinMode(botpin, INPUT_PULLUP);
 }
 
-Joystick::getRawValues(){
+JoyRead Joystick::getRawValues(){
     JoyRead read;
     read.x = analogRead(xpin);
     read.y = analogRead(ypin);
@@ -42,13 +38,13 @@ Joystick::getRawValues(){
     return read;
 }
 
-Joystick::getXfloat(){
+float Joystick::getXfloat(){
     xval = analogRead(xpin);
     xper = ((xval - 2048) / 2048.0) * 100.0;
     return xper;
 }
 
-Joystick::getYfloat(){
+float Joystick::getYfloat(){
     yval = analogRead(ypin);
     yper = ((yval - 2048) / 2048.0) * 100.0;
     return yper;
