@@ -16,10 +16,14 @@ void init_mqtt(void);
 void reconnect_wifi(void); 
 
 float readTemperature(void);
- 
+
+
 /* 
  *  Implementações das funções
  */
+I2C_Manager i2c; // Objeto gerenciador do I2C
+
+
 void setup() {
     init_serial();
     //init_pins();
@@ -29,6 +33,7 @@ void setup() {
     Serial.println("====================================");
     Serial.println("Sistema IoT ESP32 Iniciado!");
     Serial.println("====================================");
+    i2c.begin();
 }
   
 /// @brief Inicializacao da comunicacao serial
@@ -40,11 +45,10 @@ void init_serial() {
 
 /// @brief Inicializacao
 void init_pins() {
-    pinMode(PIN_LED, OUTPUT);
-    pinMode(PIN_BUTTON, INPUT_PULLUP);
-    pinMode(PIN_TEMP_SENSOR, INPUT);
-    
-    digitalWrite(PIN_LED, LOW); // LED inicia desligado
+    //pinMode(PIN_LED, OUTPUT);
+    //pinMode(PIN_BUTTON, INPUT_PULLUP);
+    //pinMode(PIN_TEMP_SENSOR, INPUT);
+    //digitalWrite(PIN_LED, LOW); // LED inicia desligado
     Serial.println("Pinos configurados!");
 }
  
@@ -63,16 +67,16 @@ void init_wifi(void) {
 
 void loop() {   
     // Garante funcionamento das conexões WiFi e ao broker MQTT
-    verifica_conexoes_wifi_mqtt();
+    //verifica_conexoes_wifi_mqtt();
     
     // Ler e publicar dados dos sensores periodicamente
     unsigned long currentMillis = millis();
     if (currentMillis - lastSensorRead >= SENSOR_INTERVAL) {
         lastSensorRead = currentMillis;
-        readAndPublishSensors();
+        //readAndPublishSensors();
     }
     
-    // Teste manual com botão (publicar imediatamente)
+    /* Teste manual com botão (publicar imediatamente)
     if (digitalRead(PIN_BUTTON) == LOW) {
         delay(50); // Debounce
         if (digitalRead(PIN_BUTTON) == LOW) {
@@ -80,10 +84,10 @@ void loop() {
             readAndPublishSensors();
             while(digitalRead(PIN_BUTTON) == LOW); // Aguarda soltar
         }
-    }
+    }*/
     
     // Keep-alive da comunicação com broker MQTT
-    MQTT.loop();
+    //MQTT.loop();
     
     // Pequeno delay para não sobrecarregar
     delay(100);

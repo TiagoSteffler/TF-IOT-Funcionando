@@ -19,7 +19,7 @@ using namespace std;
 // Keypad 4x4
 #include <Keypad.h>
 // Servo SG90
-#include <Servo.h>
+#include <ESP32Servo.h>
 // DS18B20
 #include <OneWire.h>  
 #include <DallasTemperature.h>
@@ -34,6 +34,10 @@ int BROKER_PORT = 1883;
 #define TOPICO_PUBLISH   "/iot2025/sensors/70" 
 const char* SSID = "iot2022"; // Alterar para sua rede Wi-Fi
 const char* PASSWORD = "S3nhab0@"; // Alterar para sua senha Wi-Fi
+
+// -------------------------- CONFIG DEBUG -------------------------
+#define DEBUGCOMM true      // valores dummy de sensores para comunicacao
+#define DEBUGSENS true      // imprime valores lidos dos sensores no monitor serial
 
 // --------------------------- CONFIG INIT ----------------------------
 /*TIPOS*/
@@ -52,6 +56,11 @@ void init_sensor_config(char* json_config);
 *O padrão descrito será utilizado pelo json de configuração inicial
 *Cada número pode configurar como deve ser feita a leitura do pino
 */
+
+// Gestos APDS9960
+enum Gestures {UP = APDS9960_UP, DOWN = APDS9960_DOWN, LEFT = APDS9960_LEFT, RIGHT = APDS9960_RIGHT};
+
+// Estados dos pinos
 typedef enum estado_pino_t {
     DESATIVADO,
     DIGITAL_INPUT,
@@ -62,6 +71,7 @@ typedef enum estado_pino_t {
     ONE_WIRE
 } Pino_tipo;
 
+// Tipos de sensores
 typedef enum tipo_sensor_t{
     MPU6050,
     DS18B20,
@@ -75,15 +85,14 @@ typedef enum tipo_sensor_t{
     ENCODER
 } Sensor_tipo;
 
-typedef struct Pino
-{
+// Structs de pinos
+typedef struct Pino {
     int pin;
     Pino_tipo tipo;
-}Pino;
+} Pino;
 
-
-typedef struct dado_sensor_t
-{
+// Structs de sensores
+typedef struct dado_sensor_t {
     int id;
 
     Sensor_tipo tipo;
@@ -94,18 +103,58 @@ typedef struct dado_sensor_t
     atributo_3_t atributo3;
     atributo_4_t atributo4;
 
-}Sensor;
+} Sensor;
 
-//--------------------------------------------------------------------
+// Structs de leitura do MPU6050
+typedef struct mpu_read_t{
+    float x, y, z, gx, gy, gz, temp;
+} MPU_read;
 
 
-typedef struct apds_read_t{
-    int r, g, b, c, proximity;
-} APDS_read;
+// Struct para leitura de cor APDS9960
+typedef struct apds_color_t{
+    uint16_t r, g, b, c;
+} APDS_Color;
 
 // ----------------------------- PINOS --------------------------------
-#define PIN_SCL 17
-#define PIN_SDA 18
+
+/// @brief Gerenciamento do I2C
+class I2C_Manager {
+private:
+    // Pinos utilizados
+    int sda_pin, scl_pin;
+    
+public:
+    /// @brief Inicializa o barramento I2C com pinos default
+    /// @param sda Pino SDA (default 17)
+    /// @param scl Pino SCL (default 18)
+    /// @return Se foi possivel inicializar o I2C
+    bool begin(int sda = 17, int scl = 18) {
+        sda_pin = sda;
+        scl_pin = scl;
+        return Wire.begin(sda, scl);
+    }
+    
+    /// @brief Inicializa o barramento I2C com pinos customizados
+    /// @param sda Pino SDA
+    /// @param scl Pino SCL
+    /// @return Se foi possivel reinicializar o I2C
+    bool setI2C(int sda, int scl) {
+        sda_pin = sda;
+        scl_pin = scl;
+        return Wire.begin(sda_pin, scl_pin);
+    }
+    
+    /// @brief Getter pino SDA
+    /// @return Retorna o pino SDA utilizado
+    int getSDA() { return sda_pin; }
+
+    /// @brief Getter pino SCL
+    /// @return Retorna o pino SCL utilizado
+    int getSCL() { return scl_pin; }
+};
+
+
 
 // Sensores a serem utilizados:
 /*
