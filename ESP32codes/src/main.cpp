@@ -74,13 +74,13 @@ void init_wifi(void) {
 
 void loop() {   
     // Garante funcionamento das conexões WiFi e ao broker MQTT
-    //verifica_conexoes_wifi_mqtt();
+    verifica_conexoes_wifi_mqtt();
     
     // Ler e publicar dados dos sensores periodicamente
     unsigned long currentMillis = millis();
     if (currentMillis - lastSensorRead >= SENSOR_INTERVAL) {
         lastSensorRead = currentMillis;
-        //readAndPublishSensors();
+        readAndPublishSensors();
     }
     
     /* Teste manual com botão (publicar imediatamente)
@@ -94,7 +94,10 @@ void loop() {
     }*/
     
     // Keep-alive da comunicação com broker MQTT
-    //MQTT.loop();
+    if (MQTT.connected())
+    {
+        MQTT.loop();
+    }
     
     // Pequeno delay para não sobrecarregar
     delay(50);

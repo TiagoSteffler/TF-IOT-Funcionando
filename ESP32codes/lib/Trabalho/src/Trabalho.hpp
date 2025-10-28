@@ -21,25 +21,43 @@ using namespace std;
 // Keypad 4x4
 #include <Keypad.h>
 // Servo SG90
-#include <Servo.h>
+#include <ESP32Servo.h>
 // DS18B20
 #include <OneWire.h>  
 #include <DallasTemperature.h>
-
-
 
 #include <Preferences.h> // Para armazenamento NVS das configurações MQTT
 
 extern Preferences preferences; // Objeto para armazenamento NVS
 
 // ---------------------------- CONFIGS MQTT --------------------------
-#define ID_MQTT  "ESP32_005" 
-const char* BROKER_MQTT = "192.168.2.100"; // Alterar para IP do servidor
-int BROKER_PORT = 1883;
-#define TOPICO_SUBSCRIBE "/iot2025/led/70"
-#define TOPICO_PUBLISH   "/iot2025/sensors/70" 
-const char* SSID = "iot2022"; // Alterar para sua rede Wi-Fi
-const char* PASSWORD = "S3nhab0@"; // Alterar para sua senha Wi-Fi
+#define TOPICO_SUBSCRIBE_PREFIX "config"
+#define TOPICO_PUBLISH_PREFIX "sensor" 
+
+extern char BROKER_MQTT[];
+extern int BROKER_PORT;
+extern char SSID[];
+extern char PASSWORD[];
+extern char ID_DEVICE[];
+
+/* Objetos compartilhados (definidos em MQTTsettings.cpp) */
+
+extern WiFiClient espClient;
+extern PubSubClient MQTT;
+
+/* Funções do módulo MQTT/MANAGEMENT usadas pela main */
+void init_mqtt(void);
+void reconnect_mqtt(void);
+void reconnect_wifi(void);
+void verifica_conexoes_wifi_mqtt(void);
+void loadMQTTSettings(void); // Declaração da função para carregar configurações MQTT
+void saveMQTTSettings(void); // Declaração da função para salvar configurações MQTT
+void readAndPublishSensors(void);
+
+
+// -------------------------- CONFIG DEBUG -------------------------
+#define DEBUGCOMM true      // valores dummy de sensores para comunicacao
+#define DEBUGSENS true      // imprime valores lidos dos sensores no monitor serial
 
 // --------------------------- CONFIG INIT ----------------------------
 /*TIPOS*/
@@ -111,6 +129,20 @@ typedef struct mpu_read_t{
 typedef struct apds_color_t{
     uint16_t r, g, b, c;
 } APDS_Color;
+
+/*JSON*/
+extern char SENSOR_CONFIG[]; // JSON de configuração dos sensores
+void loadJSONSensorConfig();
+void saveJSONSensorConfig(const char* json_config);
+
+/*VARS*/
+//char* json_config; //JSON recebido por protocolo
+/*FUNÇÕES*/
+
+vector<Sensor> init_sensor_config(const char* json_config);
+
+
+//--------------------------------------------------------------------
 
 // ----------------------------- PINOS --------------------------------
 
