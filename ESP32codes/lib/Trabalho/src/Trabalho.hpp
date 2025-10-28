@@ -119,6 +119,8 @@ typedef struct dado_sensor_t {
 
 }Sensor;
 
+
+
 // Structs de leitura do MPU6050
 typedef struct mpu_read_t{
     float x, y, z, gx, gy, gz, temp;
