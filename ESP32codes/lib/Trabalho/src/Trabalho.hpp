@@ -109,6 +109,8 @@ typedef struct dado_sensor_t {
 
 
 
+
+
 /*JSON*/
 extern char SENSOR_CONFIG[]; // JSON de configuração dos sensores
 void loadJSONSensorConfig();
