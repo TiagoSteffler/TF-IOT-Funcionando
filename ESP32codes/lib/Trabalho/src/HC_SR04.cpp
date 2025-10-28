@@ -1,39 +1,5 @@
 #include <Trabalho.hpp>
 
-/// @brief Sensor ultrassonico HC-SR04
-class HCSR04{  
-    private:
-        // pinos e variaveis de controle
-        int triggerPin, echoPin;
-        float distanceCm, distanceInch;
-        double soundSpeed = 0.034;
-        double cmtoInch = 0.39370078;
-        enum Unit {CM, INCH};
-        
-        // dados para calibracao
-        vector<pair<double, double>> calibration;
-        double calSlope = 1.0;
-        double calIntercept = 0.0;
-        
-        // metodos privados
-        double getrawcm();
-
-        // identificador
-        int id;
-        
-    public:
-        // contrutores/destrutores
-        HCSR04(int trigPin, int echoPin, int id);
-        ~HCSR04() {};
-
-        // metodos publicos
-        double getDistance(Unit unit = CM);
-        void calibrate(float dist);
-        void resetcalibration();
-        int getId() { return this->id; }
-};
-
-
 /// @brief Contrutor do sensor HC-SR04
 /// @param trigPin pino de trigger
 /// @param echoPin pino de echo

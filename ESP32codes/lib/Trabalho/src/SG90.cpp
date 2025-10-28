@@ -1,27 +1,5 @@
 #include <Trabalho.hpp>
 
-/// @brief Servo motor SG90
-class SG90 {
-    private:
-        // pino e variaveis de controle
-        Servo servo;
-        int pin;
-        uint16_t id;
-        uint8_t angle;
-
-    public:
-        // contrutores/destrutores  
-        SG90(int pin, uint16_t id);
-        ~SG90() {};
-
-        // metodos publicos
-        void setAngle(int angle);
-        int getAngle();
-        int isAttached() { return servo.attached(); }
-        void detach() { servo.detach(); }
-        uint16_t getId() { return this->id; }
-};
-
 
 /// @brief Construtor do servo SG90
 /// @param pin Pino ao qual o servo esta conectado

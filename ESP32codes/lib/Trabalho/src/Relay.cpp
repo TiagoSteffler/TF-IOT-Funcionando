@@ -1,24 +1,5 @@
 #include <Trabalho.hpp>
 
-/// @brief Rele solenoide
-class Relay {
-    private:
-        // pino e variaveis de controle
-        int pin;
-        uint16_t id;
-        enum State { OFF = LOW, ON = HIGH } state = OFF;
-
-    public:
-        // contrutores/destrutores
-        Relay(int pin, uint16_t id);
-        ~Relay() {};
-
-        // metodos publicos
-        void setState(State state);
-        State getState();
-        uint16_t getId() { return this->id; }
-};
-
 
 /// @brief Construtor do rele
 /// @param pin Pino ao qual o rele esta conectado
