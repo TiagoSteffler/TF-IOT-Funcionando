@@ -54,6 +54,26 @@ services:
     networks:
       - iot-net
 
+  # 5. Web (Vue + Vite) - built and served by nginx
+  # 5. Web (Vue + Vite) - dev mode (Vite)
+  web:
+    image: node:20-alpine
+    container_name: iot-web
+    working_dir: /app
+    # Mount the moved Vue project directory so changes are immediate (hot reload)
+    volumes:
+      - ./IOT-Funcionando-web:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173" # Vite dev server default port
+    command: sh -c "npm install --silent && npm run dev -- --host 0.0.0.0"
+    environment:
+      - CHOKIDAR_USEPOLLING=true # helps file watching when host is Windows
+    depends_on:
+      - mosquitto
+    networks:
+      - iot-net
+
 # Definição das redes e volumes
 networks:
   iot-net:
