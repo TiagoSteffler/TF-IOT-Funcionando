@@ -11,14 +11,14 @@ class KeyPad {
             {'7', '8', '9', 'C'},
             {'*', '0', '#', 'D'}
         };
-        Keypad keypad;
+        Keypad* keypad;
         byte pin_rows[4], pin_cols[4];
         int id;
 
     public:
         // contrutores/destrutores
         KeyPad(int rowPins[4], int colPins[4], int id);
-        ~KeyPad() {};
+        ~KeyPad() { delete keypad; };
 
         // metodos publicos
         char getKey();
@@ -35,7 +35,7 @@ KeyPad::KeyPad(int rowPins[4], int colPins[4], int id) {
         this->pin_rows[i] = rowPins[i];
         this->pin_cols[i] = colPins[i];
     }
-    keypad = Keypad(makeKeymap(keys), this->pin_rows, this->pin_cols, 4, 4);
+    keypad = new Keypad(makeKeymap(keys), this->pin_rows, this->pin_cols, 4, 4);
 
     if (DEBUGSENS) {
         Serial.print("[KeyPad id");
@@ -48,7 +48,7 @@ KeyPad::KeyPad(int rowPins[4], int colPins[4], int id) {
 /// @brief Realiza leitura por tecla pressionada
 /// @return Tecla pressionada ou NO_KEY se nenhuma tecla for pressionada
 char KeyPad::getKey() {
-    char key = keypad.getKey();
+    char key = keypad->getKey();
 
     if (key && DEBUGSENS) {
         Serial.print("[KeyPad id");

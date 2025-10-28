@@ -5,7 +5,7 @@ class MPU6050 {
     private:
         // pino e variaveis de controle
         Adafruit_MPU6050 mpu;
-        int id, addr_pin, addr, sda, scl;
+        int id, addr_pin, addr;
         MPU_read read;
         enum AccRange {A2G = MPU6050_RANGE_2_G, A4G = MPU6050_RANGE_4_G, A8G = MPU6050_RANGE_8_G, A16G = MPU6050_RANGE_16_G} acc_range = A8G;
         enum GyroRange {G250DPS = MPU6050_RANGE_250_DEG, G500DPS = MPU6050_RANGE_500_DEG, G1000DPS = MPU6050_RANGE_1000_DEG, G2000DPS = MPU6050_RANGE_2000_DEG} gyro_range = G500DPS;
@@ -13,7 +13,7 @@ class MPU6050 {
 
     public:
         // contrutores/destrutores
-        MPU6050(int id, int sda, int scl, int addr_pin = -1);
+        MPU6050(int id, int addr_pin = -1);
         ~MPU6050() {};
 
         // metodos publicos
@@ -26,13 +26,10 @@ class MPU6050 {
 /// @param sda Pino SDA
 /// @param scl Pino SCL
 /// @param addr_pin Pino de endereco (endereco padrao: 0x68)
-MPU6050::MPU6050(int id, int sda = PIN_SDA, int scl = PIN_SCL, int addr_pin = -1) {
+MPU6050::MPU6050(int id, int addr_pin = -1) {
     this->id = id;
     this->addr_pin = addr_pin;
-    this->sda = sda;
-    this->scl = scl;
 
-    Wire.begin(this->sda, this->scl);
     if (addr_pin == -1) this->addr = 0x68;
     else {
         pinMode(addr_pin, OUTPUT);

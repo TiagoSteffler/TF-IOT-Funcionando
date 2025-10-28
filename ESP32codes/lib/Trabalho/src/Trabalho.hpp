@@ -130,6 +130,12 @@ typedef struct apds_color_t{
     uint16_t r, g, b, c;
 } APDS_Color;
 
+// Struct para leitura do joystick
+typedef struct joystick_read{
+    int x, y, bot;
+} JoyRead;
+
+
 /*JSON*/
 extern char SENSOR_CONFIG[]; // JSON de configuração dos sensores
 void loadJSONSensorConfig();
