@@ -1,0 +1,36 @@
+14 - touch - ADC
+13 - touch - ADC
+12 - touch - ADC
+10 - touch - ADC
+9 - touch - ADC
+46 - log
+3 - touch - ADC
+8 - touch - ADC
+18 - ADC
+17 - ADC
+16 - ADC
+15 - ADC
+7 - touch - ADC
+6 - touch - ADC
+5 - touch - ADC
+4 - touch - ADC
+
+19 - ADC - USB D+ (OTG)
+20 - ADC - USB D- (OTG)
+21
+47
+48 - WS2812 builtin
+45 - VSPI (X)
+0 - Boot (X)
+35 - PSRAM (X)
+36 - PSRAM (X)
+37 - PSRAM (X)
+38 - SD_CMD (?)
+39 - SD_CLK (?)
+40 - SD_DATA (?)
+41
+42
+2 - touch - ADC - LED builtin
+1 - touch - ADC
+RX
+TX
