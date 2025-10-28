@@ -1,29 +1,6 @@
 #include <Trabalho.hpp>
 #define NO_KEY '\0'
 
-/// @brief Classe do keypad 4x4
-class KeyPad {
-    private:
-        /// @brief Mapa de teclas do keypad e controle
-        char keys[4][4]{
-            {'1', '2', '3', 'A'},
-            {'4', '5', '6', 'B'},
-            {'7', '8', '9', 'C'},
-            {'*', '0', '#', 'D'}
-        };
-        Keypad* keypad;
-        byte pin_rows[4], pin_cols[4];
-        int id;
-
-    public:
-        // contrutores/destrutores
-        KeyPad(int rowPins[4], int colPins[4], int id);
-        ~KeyPad() { delete keypad; };
-
-        // metodos publicos
-        char getKey();
-};
-
 /// @brief Construtor do keypad 4x4
 /// @param rowPins vetor com os pinos das linhas
 /// @param colPins vetor com os pinos das colunas

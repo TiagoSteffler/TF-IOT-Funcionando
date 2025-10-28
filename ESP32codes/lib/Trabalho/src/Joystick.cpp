@@ -1,19 +1,5 @@
 #include <Trabalho.hpp>
 
-class Joystick{
-    private:
-    int xpin, ypin, botpin;
-    int xval, yval, botval;
-    float xper, yper;
-    uint16_t id;
-
-    public:
-    Joystick(int x, int y, int bot, uint16_t id);
-    JoyRead getRawValues();
-    float getXfloat();
-    float getYfloat();
-};
-
 /// @brief Construtor do joystick
 /// @param x Pino do eixo X
 /// @param y Pino do eixo Y

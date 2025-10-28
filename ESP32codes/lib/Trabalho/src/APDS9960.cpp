@@ -1,24 +1,5 @@
  #include "Trabalho.hpp"
 
-/// @brief Sensor de proximidade APDS9960
-class APDS9960{
-    private:
-        // variaveis de controle
-        Adafruit_APDS9960 *apds;
-        int id;
-        int interruptPin;
-
-    public:
-        // contrutores/destrutores
-        APDS9960::APDS9960(int id, int interruptPin);
-        ~APDS9960() {};
-
-        // metodos publicos
-        APDS_Color getColor();
-        uint8_t getProx();
-        uint8_t getGesture();
-};
-
 /// @brief Construtor do sensor APDS9960
 /// @param id identificador do sensor
 /// @param interruptPin pino de interrupcao do sensor
@@ -37,7 +18,6 @@ APDS9960::APDS9960(int id, int interruptPin) {
     this->apds = new Adafruit_APDS9960();
     apds->begin();
 }
-
 
 /// @brief Realiza a leitura de gestos
 /// @return Retorna gesto detectado
