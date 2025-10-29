@@ -26,20 +26,26 @@ Joystick::Joystick(int x, int y, int bot, uint16_t id) {
     }
 }
 
+/// @brief Realiza a leitura bruta do joystick
+/// @return Estrutura com os valores crus lidos
 JoyRead Joystick::getRawValues(){
     JoyRead read;
     read.x = analogRead(xpin);
     read.y = analogRead(ypin);
-    read.bot = digitalRead(botpin);
+    read.bot = !digitalRead(botpin);
     return read;
 }
 
+/// @brief Leitura do eixo X em porcentagem
+/// @return Porcentagem do eixo X (-100% - 0% - 100%)
 float Joystick::getXfloat(){
     xval = analogRead(xpin);
     xper = ((xval - 2048) / 2048.0) * 100.0;
     return xper;
 }
 
+/// @brief Leitura do eixo Y em porcentagem
+/// @return Porcentagem do eixo Y (-100% - 0% - 100%)
 float Joystick::getYfloat(){
     yval = analogRead(ypin);
     yper = ((yval - 2048) / 2048.0) * 100.0;

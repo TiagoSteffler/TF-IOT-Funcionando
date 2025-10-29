@@ -101,12 +101,6 @@ typedef struct dado_sensor_t {
 
 }Sensor;
 
-
-
-
-
-
-
 /*JSON*/
 extern char SENSOR_CONFIG[]; // JSON de configuração dos sensores
 void loadJSONSensorConfig();
@@ -159,24 +153,18 @@ public:
     int getSCL() { return scl_pin; }
 };
 
-
-// ----------------------------- CLASSES DE SENSORES --------------------------------
-
-// ---------------------------------------------------------------------------------
-
-
 // Sensores a serem utilizados:
 /*
- - Sensor de temperatura DS18B20 - 1-Wire
- - Sensor Acelerômetro MPU6050 - I2C
- - Sensor de gestos e cor APDS-9960 - I2C (ou sensor de cor TCS34725 - I2C)
- - Sensor de velocidade (encoder rotativo) - digital
- - Sensor ultrassônico HC-SR04 - digital (2 pinos)
- - Módulo relé 1 canal - digital (1 pino)
- - Micro servo SG90 - PWM (1 pino)
- - Joystick analógico - 2 pinos analógicos + 1 pino digital (botao)
- - Teclado matricial 4x4 - digital (8 pinos)    
- - Receptor IR - digital (1 pino)
+ - [x] Sensor de temperatura DS18B20 - 1-Wire
+ - [x] Sensor Acelerômetro MPU6050 - I2C
+ - [x] Sensor de gestos e cor APDS-9960 - I2C (ou sensor de cor TCS34725 - I2C)
+ - [ ] Sensor de velocidade (encoder rotativo) - digital
+ - [x] Sensor ultrassônico HC-SR04 - digital (2 pinos)
+ - [x] Módulo relé 1 canal - digital (1 pino)
+ - [x] Micro servo SG90 - PWM (1 pino)
+ - [x] Joystick analógico - 2 pinos analógicos + 1 pino digital (botao)
+ - [x] Teclado matricial 4x4 - digital (8 pinos)    
+ - [ ] Receptor IR - digital (1 pino)
 */
 
 
