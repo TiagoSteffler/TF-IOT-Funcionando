@@ -3,7 +3,6 @@
 /// @brief Construtor do sensor DS18B20
 /// @param pin pino de dados do sensor
 /// @param id identificador do sensor
-/// @note Apenas um sensor deve ser conectado por pino de dados
 DS18B20::DS18B20(int pin, int id) {
     this->dataPin = pin;
     this->id = id;

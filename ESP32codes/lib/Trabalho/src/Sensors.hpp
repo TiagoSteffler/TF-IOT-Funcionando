@@ -12,7 +12,7 @@
 #include <DallasTemperature.h>
 
 // -------------------------- CONFIG DEBUG -------------------------
-#define DEBUGCOMM true      // valores dummy de sensores para comunicacao
+#define DEBUGCOMM false      // valores dummy de sensores para comunicacao
 #define DEBUGSENS true      // imprime valores lidos dos sensores no monitor serial
 
 // ------------- ESTRUTURAS DE DADOS ---------------
@@ -43,49 +43,58 @@ class APDS9960{
 
     public:
         // contrutores/destrutores
-        APDS9960::APDS9960(int id, int interruptPin);
+        APDS9960(int id, int interruptPin);
         ~APDS9960() {};
 
         // metodos publicos
         APDS_Color getColor();
         uint8_t getProx();
         uint8_t getGesture();
+        int getId() { return this->id; }
 };
 
 
 /// @brief Sensor de temperatura DS18B20
 class DS18B20{
-private:
-    // variaveis de controle
-    int dataPin;
-    int id;
-    OneWire* oneWire;
-    DallasTemperature* sensors;
-    enum Unit {C, F};
+    private:
+        // variaveis de controle
+        int dataPin;
+        int id;
+        OneWire* oneWire;
+        DallasTemperature* sensors;
+        enum Unit {C, F};
 
-    public:
-    // contrutores/destrutores
-    DS18B20(int pin, int id);
-    ~DS18B20() {};
+        public:
+        // contrutores/destrutores
+        DS18B20(int pin, int id);
+        ~DS18B20() {};
 
-    // metodos publicos
-    float readTemperature(Unit unit = C);
+        // metodos publicos
+        float readTemperature(Unit unit = C);
+        int getId() { return this->id; }
 };
 
 
 /// @brief Classe do joystick analogico
 class Joystick{
     private:
-    int xpin, ypin, botpin;
-    int xval, yval, botval;
-    float xper, yper;
-    uint16_t id;
+        // variaveis de controle
+        int xpin, ypin, botpin;
+        int xval, yval;
+        float xper, yper;
+        uint16_t id;
 
     public:
-    Joystick(int x, int y, int bot, uint16_t id);
-    JoyRead getRawValues();
-    float getXfloat();
-    float getYfloat();
+        // contrutores/destrutores
+        Joystick(int x, int y, int bot, uint16_t id);
+        ~Joystick() {};
+
+        // metodos publicos
+        JoyRead getRawValues();
+        float getXfloat();
+        float getYfloat();
+        int getButtonState() { return !digitalRead(botpin); }
+        uint16_t getId() { return this->id; }
 };
 
 
@@ -144,6 +153,7 @@ class KeyPad {
 
         // metodos publicos
         char getKey();
+        int getId() { return this->id; }
 };
 
 
@@ -166,6 +176,7 @@ class MPU6050 {
         // metodos publicos
         void setParamsMPU(AccRange acc_range, GyroRange gyro_range, FilterBandwidth filter_bandwidth);
         MPU_read getValues();
+        int getId() { return this->id; }
 };
 
 
