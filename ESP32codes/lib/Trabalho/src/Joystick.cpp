@@ -6,14 +6,24 @@
 /// @param bot Pino do botao
 /// @param id Identificador do joystick
 Joystick::Joystick(int x, int y, int bot, uint16_t id) {
-    xpin = x;
-    ypin = y;
-    botpin = bot;
+    this->xpin = x;
+    this->ypin = y;
+    this->botpin = bot;
     this->id = id;
-
-    pinMode(xpin, INPUT);
-    pinMode(ypin, INPUT);
-    pinMode(botpin, INPUT_PULLUP);
+    this->xval = 0;
+    this->yval = 0;
+    this->xper = 0.0;
+    this->yper = 0.0;
+    
+    pinMode(this->xpin, INPUT);
+    pinMode(this->ypin, INPUT);
+    pinMode(this->botpin, INPUT_PULLUP);
+    
+    if (DEBUGSENS) {
+        Serial.print("[Joystick id ");
+        Serial.print(this->id);
+        Serial.println("] Inicializado");
+    }
 }
 
 JoyRead Joystick::getRawValues(){

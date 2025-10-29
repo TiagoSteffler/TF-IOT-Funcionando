@@ -12,7 +12,7 @@
 #include <DallasTemperature.h>
 
 // -------------------------- CONFIG DEBUG -------------------------
-#define DEBUGCOMM true      // valores dummy de sensores para comunicacao
+#define DEBUGCOMM false      // valores dummy de sensores para comunicacao
 #define DEBUGSENS true      // imprime valores lidos dos sensores no monitor serial
 
 // ------------- ESTRUTURAS DE DADOS ---------------
@@ -43,7 +43,7 @@ class APDS9960{
 
     public:
         // contrutores/destrutores
-        APDS9960::APDS9960(int id, int interruptPin);
+        APDS9960(int id, int interruptPin);
         ~APDS9960() {};
 
         // metodos publicos
@@ -77,7 +77,7 @@ private:
 class Joystick{
     private:
     int xpin, ypin, botpin;
-    int xval, yval, botval;
+    int xval, yval;
     float xper, yper;
     uint16_t id;
 

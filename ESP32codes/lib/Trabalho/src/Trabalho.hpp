@@ -65,7 +65,7 @@ typedef enum estado_pino_t {
     DESATIVADO,
     DIGITAL_INPUT,
     DIGITAL_OUTPUT,
-    ANALOGIC,
+    ANALOGICO,
     SCL_,
     SDA_,
     ONE_WIRE
@@ -93,17 +93,17 @@ typedef struct Pino {
 
 // Structs de sensores
 typedef struct dado_sensor_t {
+    
     int id;
-
     Sensor_tipo tipo;
     string desc;
-    vector<Pino> pinos;
-    atributo_1_t atributo1;
-    atributo_2_t atributo2;
-    atributo_3_t atributo3;
-    atributo_4_t atributo4;
+    void *objeto; // Ponteiro para o objeto do sensor
 
 }Sensor;
+
+
+
+
 
 
 
@@ -159,6 +159,10 @@ public:
     int getSCL() { return scl_pin; }
 };
 
+
+// ----------------------------- CLASSES DE SENSORES --------------------------------
+
+// ---------------------------------------------------------------------------------
 
 
 // Sensores a serem utilizados:
