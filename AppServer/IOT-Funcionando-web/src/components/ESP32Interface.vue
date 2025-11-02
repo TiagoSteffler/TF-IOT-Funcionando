@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import ProvisionSetup from './ProvisionSetup.vue'
+import SensorPanel from './SensorPanel.vue'
 
 const selectedPin = ref(null)
 
@@ -94,6 +95,9 @@ const selectDevice = (device) => {
 const showProvision = ref(false)
 const openProvision = () => { showProvision.value = true }
 const closeProvision = () => { showProvision.value = false }
+const showSensorPanel = ref(false)
+const openSensorPanel = () => { showSensorPanel.value = true }
+const closeSensorPanel = () => { showSensorPanel.value = false }
 </script>
 
 <template>
@@ -176,6 +180,7 @@ const closeProvision = () => { showProvision.value = false }
         <div v-if="selectedPin.usable" class="config-actions">
           <button class="btn-primary" @click="configurePin">Configure</button>
           <button class="btn-secondary" @click="readValue">Read Value</button>
+          <button class="btn-secondary" @click="openSensorPanel">Show sensor data</button>
         </div>
         <div v-else class="warning-message">
           ⚠️ This pin is reserved for internal use and cannot be configured
@@ -238,6 +243,7 @@ const closeProvision = () => { showProvision.value = false }
     </div>
     
     <ProvisionSetup v-if="showProvision" @close="closeProvision" />
+    <SensorPanel v-if="showSensorPanel" :pin="selectedPin?.number" @close="closeSensorPanel" />
   </div>
 </template>
 
