@@ -2,8 +2,10 @@
 import { ref, computed } from 'vue'
 import ProvisionSetup from './ProvisionSetup.vue'
 import SensorPanel from './SensorPanel.vue'
+import SensorConfigPanel from './SensorConfigPanel.vue'
 
 const selectedPin = ref(null)
+const showConfig = ref(false)
 
 // Left side pins (bottom to top): 14-4
 const leftPins = ref([
@@ -54,9 +56,45 @@ const selectPin = (pin) => {
 
 const configurePin = () => {
   if (selectedPin.value) {
-    console.log('Configuring pin:', selectedPin.value.number)
-    // Add your configuration logic here
+    showConfig.value = true
   }
+}
+
+const closeConfig = () => {
+  showConfig.value = false
+}
+
+const saveConfig = (config) => {
+  if (config.isNew) {
+    // Add new sensor to the appropriate array based on pin number
+    const newPin = {
+      ...config,
+      number: config.number || leftPins.value.length + 1,
+      capabilities: ['touch', 'ADC', 'PWM'],
+      usable: true,
+      value: 0
+    }
+    delete newPin.isNew
+
+    // Add to left pins by default
+    leftPins.value.push(newPin)
+  } else {
+    // Update existing pin
+    const pinArray = leftPins.value.concat(rightPins.value)
+    const pinIndex = pinArray.findIndex(p => p.number === config.number)
+    
+    if (pinIndex !== -1) {
+      const targetArray = pinIndex < leftPins.value.length ? leftPins : rightPins
+      const arrayIndex = pinIndex < leftPins.value.length ? pinIndex : pinIndex - leftPins.value.length
+      
+      targetArray.value[arrayIndex] = {
+        ...targetArray.value[arrayIndex],
+        ...config
+      }
+    }
+  }
+  
+  showConfig.value = false
 }
 
 const readValue = () => {
@@ -98,14 +136,37 @@ const closeProvision = () => { showProvision.value = false }
 const showSensorPanel = ref(false)
 const openSensorPanel = () => { showSensorPanel.value = true }
 const closeSensorPanel = () => { showSensorPanel.value = false }
+
+// New sensor configuration
+const openNewSensorConfig = () => {
+  showConfig.value = true
+  selectedPin.value = {
+    number: null,
+    capabilities: ['touch', 'ADC', 'PWM'],
+    usable: true,
+    value: 0,
+    notes: '',
+    type: 'sensor',
+    isNew: true
+  }
+}
+
+// Check if ESP32 is initialized
+const isInitialized = ref(true) // Set to true for testing without ESP32 setup
 </script>
 
 <template>
   <div class="esp32-interface">
+    <div class="top-bar">
+      <h1 class="app-title">IoT - Painel</h1>
+      <button class="add-sensor-button" @click="openNewSensorConfig">
+        Adicionar sensor
+      </button>
+    </div>
     <div class="main-content">
       <div class="board-section">
-      <h2>ESP32-S3 Board</h2>
-      <div class="board-container">
+        <h2>ESP32-S3 Board</h2>
+        <div class="board-container">
         <img src="/ESP32S3_Pinout.png" alt="ESP32-S3 Board" class="board-image" />
         
         <!-- Left side pins -->
@@ -244,6 +305,27 @@ const closeSensorPanel = () => { showSensorPanel.value = false }
     
     <ProvisionSetup v-if="showProvision" @close="closeProvision" />
     <SensorPanel v-if="showSensorPanel" :pin="selectedPin?.number" @close="closeSensorPanel" />
+    <SensorConfigPanel 
+      v-if="showConfig" 
+      :pin="selectedPin" 
+      @close="closeConfig"
+      @save="saveConfig"
+    />
+
+    <!-- Initial setup overlay when ESP32 is not initialized -->
+    <div v-if="!isInitialized" class="initialization-overlay">
+      <div class="initialization-card">
+        <h2>ESP32 Initial Setup Required</h2>
+        <p>Your ESP32 needs to be configured before use. Please complete the following steps:</p>
+        <ol>
+          <li>Connect your ESP32 to power</li>
+          <li>Make sure it's in setup mode (LED blinking pattern)</li>
+          <li>Connect to the ESP32's WiFi access point</li>
+          <li>Configure your WiFi network settings</li>
+        </ol>
+        <button class="btn-primary" @click="openProvision">Start Setup</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -252,22 +334,80 @@ const closeSensorPanel = () => { showSensorPanel.value = false }
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: #f0f2f5;
+  background: #f8fafc;
+  overflow: hidden;
+}
+
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 24px;
+  background: #1e293b;
+  color: white;
+  flex-shrink: 0;
+}
+
+.app-title {
+  font-size: 18px;
+  font-weight: 500;
+  margin: 0;
+}
+
+.add-sensor-button {
+  background: #10b981;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.add-sensor-button:hover {
+  background: #059669;
 }
 
 .main-content {
   display: flex;
   flex: 1;
-  gap: 20px;
-  padding: 20px 20px 0 20px;
+  gap: 24px;
+  padding: 24px;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow-y: auto;
+  min-height: 0;
+  padding-bottom: 140px; /* Adicionado padding extra na parte inferior */
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.add-sensor-button {
+  background-color: #10B981;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.add-sensor-button:hover {
+  background-color: #059669;
 }
 
 .board-section {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 .board-container {
@@ -280,6 +420,46 @@ const closeSensorPanel = () => { showSensorPanel.value = false }
   border-radius: 12px;
   padding: 20px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  margin-bottom: 120px; /* Aumentado o espaço para a barra inferior */
+  min-height: 700px; /* Aumentada a altura mínima */
+}
+
+.initialization-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.initialization-card {
+  background: white;
+  padding: 2rem;
+  border-radius: 8px;
+  max-width: 500px;
+  width: 90%;
+}
+
+.initialization-card h2 {
+  margin: 0 0 1rem 0;
+  color: #2d3748;
+}
+
+.initialization-card p {
+  margin-bottom: 1rem;
+  color: #4a5568;
+}
+
+.initialization-card ol {
+  margin-bottom: 1.5rem;
+  padding-left: 1.5rem;
+}
+
+.initialization-card li {
+  margin-bottom: 0.5rem;
+  color: #4a5568;
 }
 
 .board-image {
@@ -526,6 +706,10 @@ h3 {
 
 /* Bottom Ribbon Styles */
 .bottom-ribbon {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
   display: flex;
   align-items: center;
   gap: 24px;
@@ -533,6 +717,7 @@ h3 {
   background: #ffffff;
   border-top: 2px solid #e2e8f0;
   box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+  z-index: 10;
 }
 
 .ribbon-section {
