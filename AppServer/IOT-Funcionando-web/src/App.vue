@@ -1,24 +1,116 @@
 <script setup>
-import ESP32Interface from './components/ESP32Interface.vue'
+import { ref, computed } from 'vue'
+import HeaderBar from './components/HeaderBar.vue'
+import ESP32Preview from './components/ESP32Preview.vue'
+import SettingsPanel from './components/SettingsPanel.vue'
+import PinPreview from './components/PinPreview.vue'
+import SensorSetup from './components/SensorSetup.vue'
+import SensorReadings from './components/SensorReadings.vue'
+import SensorList from './components/SensorList.vue'
+import FooterBar from './components/FooterBar.vue'
+
+const activeView = ref('SettingsPanel')
+const selectedPin = ref(null)
+
+// store configured sensors in-memory (pinNumber, type, model, deviceId, id)
+const sensors = ref([])
+
+const saveSensor = (sensor) => {
+  // if id exists, update; else create
+  if (sensor.id) {
+    const idx = sensors.value.findIndex(s => s.id === sensor.id)
+    if (idx !== -1) sensors.value[idx] = sensor
+  } else {
+    sensor.id = `dev-${Date.now()}`
+    sensors.value.push(sensor)
+  }
+}
+
+const deleteSensor = (id) => {
+  sensors.value = sensors.value.filter(s => s.id !== id)
+}
+
+const viewMap = {
+  SettingsPanel,
+  SensorPanel: SensorSetup,
+  PinPreview,
+  SensorReadings,
+  SensorSetup,
+  SensorList
+}
+
+const activeViewComponent = computed(() => viewMap[activeView.value] || SettingsPanel)
+
+const onViewChange = (viewId) => {
+  activeView.value = viewId
+}
+
+const onPinSelected = (pin) => {
+  selectedPin.value = pin
+  // When a pin is selected, show the PinPreview view automatically
+  activeView.value = 'PinPreview'
+}
+
+// helper (same deterministic demo rules used elsewhere) to create a pin details object
+const getPinDetails = (pinNumber) => {
+  const capabilities = []
+  if (pinNumber % 2 === 0) capabilities.push('PWM')
+  if (pinNumber % 3 === 0) capabilities.push('ADC')
+  if (pinNumber % 5 === 0) capabilities.push('I2C')
+  if (pinNumber % 7 === 0) capabilities.push('SPI')
+  if (pinNumber % 11 === 0) capabilities.push('Touch')
+  if (pinNumber === 1 || pinNumber === 2) capabilities.push('UART')
+  const usable = !(pinNumber % 13 === 0)
+  return { number: Number(pinNumber), capabilities, usable }
+}
+
+const handleOpenSetup = (sensorId) => {
+  if (sensorId) {
+    const s = sensors.value.find(x => x.id === sensorId)
+    if (s) selectedPin.value = getPinDetails(Number(s.pin))
+  }
+  activeView.value = 'SensorSetup'
+}
+
+const handleOpenReadings = (sensorId) => {
+  if (sensorId) {
+    const s = sensors.value.find(x => x.id === sensorId)
+    if (s) selectedPin.value = getPinDetails(Number(s.pin))
+  }
+  activeView.value = 'SensorReadings'
+}
 </script>
 
 <template>
-  <ESP32Interface />
+  <div id="app">
+    <!-- Top header area (10-20% of viewport) -->
+    <div class="top-area" style="border:2px solid black; height:10vh; box-sizing:border-box">
+      <HeaderBar @view-change="onViewChange" />
+    </div>
+
+    <!-- Middle area: left 40% (preview) and right 60% (dynamic) -->
+    <div class="middle-area" style="display:flex; height:75vh">
+      <div class="left-area" style="width:40%; border:2px solid black; box-sizing:border-box; overflow:auto">
+        <ESP32Preview @pin-selected="onPinSelected" />
+      </div>
+
+      <div class="right-area" style="width:60%; border:2px solid black; box-sizing:border-box; overflow:auto; padding:8px">
+  <component :is="activeViewComponent"
+       v-bind="{ selectedPin, sensors }"
+       @open-setup="(id) => handleOpenSetup(id)"
+       @open-readings="(id) => handleOpenReadings(id)"
+       @save-sensor="(s) => { saveSensor(s); onViewChange('PinPreview') }"
+       @delete-sensor="(id) => { deleteSensor(id); onViewChange('PinPreview') }"
+  />
+      </div>
+    </div>
+
+    <!-- Footer area (10% of viewport) -->
+    <div class="footer-area" style="border:2px solid black; height:10vh; box-sizing:border-box">
+      <FooterBar />
+    </div>
+  </div>
 </template>
 
-<style>
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-}
 
-#app {
-  width: 100%;
-  height: 100vh;
-}
-</style>

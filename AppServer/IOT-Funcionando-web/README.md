@@ -1,4 +1,4 @@
-# iot-funcionando
+# IOT-Funcionando-web
 
 This template should help get you started developing with Vue 3 in Vite.
 
@@ -36,3 +36,22 @@ npm run dev
 ```sh
 npm run build
 ```
+
+### Docker (build and run)
+
+This project includes a production Dockerfile that builds the Vite app and serves it with nginx.
+
+Build the image (run from the `IOT-Funcionando-web` folder):
+
+```powershell
+docker build -t iot-funcionando-web .
+```
+
+Run the container (map port 80):
+
+```powershell
+docker run -p 8080:80 iot-funcionando-web
+```
+
+Then open http://localhost:8080
+
