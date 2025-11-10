@@ -54,8 +54,27 @@ services:
     networks:
       - iot-net
 
-  # 5. Web (Vue + Vite) - built and served by nginx
-  # 5. Web (Vue + Vite) - dev mode (Vite)
+  api_server:
+    build:
+      context: ./api_server # Pasta que você acabou de criar
+    container_name: api_service
+    ports:
+      - "5000:5000" # Expõe a porta 5000 da API para o host
+    depends_on:
+      - mosquitto
+      - influxdb
+    environment:
+      # Reutiliza as mesmas variáveis de ambiente
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=meu-token-super-secreto
+      - INFLUXDB_ORG=ufsm-iot
+      - INFLUXDB_BUCKET=sensores
+      - MQTT_BROKER_HOST=mosquitto
+      - MQTT_BROKER_PORT=1883
+    restart: always
+    networks:
+      - iot-net
+      
   web:
     image: node:20-alpine
     container_name: iot-web
