@@ -8,9 +8,24 @@ import SensorSetup from './components/SensorSetup.vue'
 import SensorReadings from './components/SensorReadings.vue'
 import SensorList from './components/SensorList.vue'
 import FooterBar from './components/FooterBar.vue'
+import BoardProvisioning from './components/BoardProvisioning.vue'
 
 const activeView = ref('SettingsPanel')
 const selectedPin = ref(null)
+const showProvisioning = ref(false)
+
+// Board management - starting with device ID 1
+const boards = ref([
+  { id: 'board-1', deviceId: 1, name: 'ESP32 #1', mac: 'AA:BB:CC:11:22:33', ip: '192.168.1.100', mqtt: 'esp32_device_1' }
+])
+const currentBoardId = ref('board-1')
+
+const currentBoard = computed(() => boards.value.find(b => b.id === currentBoardId.value))
+const currentDeviceId = computed(() => currentBoard.value?.deviceId || 1)
+const nextDeviceId = computed(() => {
+  const maxId = boards.value.reduce((max, b) => Math.max(max, b.deviceId), 0)
+  return maxId + 1
+})
 
 // store configured sensors in-memory (pinNumber, type, model, deviceId, id)
 const sensors = ref([])
@@ -79,13 +94,32 @@ const handleOpenReadings = (sensorId) => {
   }
   activeView.value = 'SensorReadings'
 }
+
+const openBoardProvisioning = () => {
+  showProvisioning.value = true
+}
+
+const handleProvisionComplete = (newBoard) => {
+  boards.value.push(newBoard)
+  currentBoardId.value = newBoard.id
+  showProvisioning.value = false
+  activeView.value = 'SettingsPanel'
+}
+
+const handleProvisionCancel = () => {
+  showProvisioning.value = false
+}
+
+const handleBoardChange = (boardId) => {
+  currentBoardId.value = boardId
+}
 </script>
 
 <template>
   <div id="app">
     <!-- Top header area (10-20% of viewport) -->
     <div class="top-area" style="border:2px solid black; height:10vh; box-sizing:border-box">
-      <HeaderBar @view-change="onViewChange" />
+      <HeaderBar @view-change="onViewChange" @add-board="openBoardProvisioning" />
     </div>
 
     <!-- Middle area: left 40% (preview) and right 60% (dynamic) -->
@@ -95,19 +129,33 @@ const handleOpenReadings = (sensorId) => {
       </div>
 
       <div class="right-area" style="width:60%; border:2px solid black; box-sizing:border-box; overflow:auto; padding:8px">
-  <component :is="activeViewComponent"
-       v-bind="{ selectedPin, sensors }"
-       @open-setup="(id) => handleOpenSetup(id)"
-       @open-readings="(id) => handleOpenReadings(id)"
-       @save-sensor="(s) => { saveSensor(s); onViewChange('PinPreview') }"
-       @delete-sensor="(id) => { deleteSensor(id); onViewChange('PinPreview') }"
-  />
+        <!-- Board Provisioning Modal -->
+        <BoardProvisioning 
+          v-if="showProvisioning"
+          :next-device-id="nextDeviceId"
+          @provision-complete="handleProvisionComplete"
+          @cancel="handleProvisionCancel"
+        />
+        
+        <!-- Regular Views -->
+        <component v-else
+          :is="activeViewComponent"
+          v-bind="{ selectedPin, sensors, deviceId: currentDeviceId }"
+          @open-setup="(id) => handleOpenSetup(id)"
+          @open-readings="(id) => handleOpenReadings(id)"
+          @save-sensor="(s) => { saveSensor(s); onViewChange('PinPreview') }"
+          @delete-sensor="(id) => { deleteSensor(id); onViewChange('PinPreview') }"
+        />
       </div>
     </div>
 
     <!-- Footer area (10% of viewport) -->
     <div class="footer-area" style="border:2px solid black; height:10vh; box-sizing:border-box">
-      <FooterBar />
+      <FooterBar 
+        :boards="boards" 
+        :current-board-id="currentBoardId"
+        @board-change="handleBoardChange"
+      />
     </div>
   </div>
 </template>

@@ -1,31 +1,33 @@
 <script setup>
-import { ref } from 'vue'
+import { computed } from 'vue'
 
-const boards = ref([
-  { id: 'board-1', name: 'ESP32 #1', mac: 'AA:BB:CC:11:22:33', ip: '192.168.1.100', mqtt: 'esp32_1' },
-  { id: 'board-2', name: 'ESP32 #2', mac: 'AA:BB:CC:44:55:66', ip: '192.168.1.101', mqtt: 'esp32_2' }
-])
+const props = defineProps({
+  boards: { type: Array, required: true },
+  currentBoardId: { type: String, required: true }
+})
 
-const current = ref(boards.value[0].id)
+const emit = defineEmits(['board-change'])
 
 const selectBoard = (ev) => {
-  current.value = ev.target.value
+  emit('board-change', ev.target.value)
 }
+
+const currentBoard = computed(() => props.boards.find(b => b.id === props.currentBoardId))
 </script>
 
 <template>
   <footer>
     <div>
       <label>Board:</label>
-      <select :value="current" @change="selectBoard">
+      <select :value="currentBoardId" @change="selectBoard">
         <option v-for="b in boards" :key="b.id" :value="b.id">{{ b.name }}</option>
       </select>
     </div>
 
-    <div>
-      <p>MAC: {{ boards.find(b => b.id === current)?.mac }}</p>
-      <p>IP: {{ boards.find(b => b.id === current)?.ip }}</p>
-      <p>MQTT ID: {{ boards.find(b => b.id === current)?.mqtt }}</p>
+    <div v-if="currentBoard">
+      <p>MAC: {{ currentBoard.mac }}</p>
+      <p>IP: {{ currentBoard.ip }}</p>
+      <p>MQTT ID: {{ currentBoard.mqtt }}</p>
     </div>
   </footer>
 </template>
