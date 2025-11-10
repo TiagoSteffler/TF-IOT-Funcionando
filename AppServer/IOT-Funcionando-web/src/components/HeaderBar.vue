@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 
-const emit = defineEmits(['view-change'])
+const emit = defineEmits(['view-change', 'add-board'])
 
 const addSensor = () => {
   // open the SensorSetup view
@@ -9,7 +9,8 @@ const addSensor = () => {
 }
 
 const addBoard = () => {
-  // placeholder - action to add a board
+  // emit event to open board provisioning
+  emit('add-board')
 }
 
 const views = [
