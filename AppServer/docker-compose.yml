@@ -93,6 +93,21 @@ services:
     networks:
       - iot-net
 
+  # 5. Dummy ESP32 Simulator (for testing without hardware)
+  dummy_esp32:
+    build:
+      context: ./dummy-esp32
+    container_name: dummy_esp32_1
+    depends_on:
+      - mosquitto
+    environment:
+      - DEVICE_ID=esp32_device_1
+      - MQTT_BROKER=mosquitto
+      - MQTT_PORT=1883
+    restart: always
+    networks:
+      - iot-net
+
 # Definição das redes e volumes
 networks:
   iot-net:

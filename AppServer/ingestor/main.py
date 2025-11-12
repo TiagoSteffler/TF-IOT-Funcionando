@@ -13,7 +13,8 @@ MQTT_BROKER_HOST = os.getenv('MQTT_BROKER_HOST')
 MQTT_BROKER_PORT = int(os.getenv('MQTT_BROKER_PORT'))
 
 # Tópico MQTT para escutar
-MQTT_TOPIC = "sensor/#" 
+# Pattern: {device_id}/sensors/{sensor_id}/data
+MQTT_TOPIC = "+/sensors/+/data"  # + is wildcard for any device_id and sensor_id 
 
 # --- Conexão com InfluxDB ---
 print("Conectando ao InfluxDB...")
@@ -65,39 +66,48 @@ def on_message(client, userdata, msg):
     try:
         # Tenta decodificar a mensagem (payload)
         payload = msg.payload.decode('utf-8')
-        print(f"Mensagem recebida: Tópico[{msg.topic}] Payload[{payload}]")
+        print(f"📨 Mensagem recebida: Tópico[{msg.topic}] Payload[{payload[:100]}...]")
 
-        # Extrai o "sensor" e o "dispositivo" do tópico
-        # Ex: "sensor/esp32-ttgo-1/dht11/temperatura"
-        parts = msg.topic.split('/')
-        if len(parts) >= 4:
-            device_id = parts[1]
-            sensor_name = parts[2]
-            measurement_name = parts[3]
-            
-            # Tenta converter o payload para float
-            try:
-                value = float(payload)
-            except ValueError:
-                print(f"Payload não é um número: {payload}")
-                return
-
-            # Cria o Ponto de dado para o InfluxDB
-            point = Point(measurement_name) \
-                .tag("device_id", device_id) \
-                .tag("sensor", sensor_name) \
-                .field("value", value) \
-                .time(time.time_ns(), write_precision='ns')
-            
-            # Escreve o ponto no InfluxDB
-            write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=point)
-            print(f"Dado salvo no InfluxDB: {measurement_name}={value} para {device_id}")
+        # Parse JSON payload
+        import json
+        data = json.loads(payload)
         
-        else:
-            print(f"Tópico '{msg.topic}' não corresponde ao formato esperado 'sensor/device/sensor/measurement'.")
+        # Extract information from topic: {device_id}/sensors/{sensor_id}/data
+        parts = msg.topic.split('/')
+        if len(parts) >= 4 and parts[1] == 'sensors' and parts[3] == 'data':
+            device_id = data.get('device_id') or parts[0]
+            sensor_id = data.get('sensor_id') or parts[2]
+            sensor_type = data.get('type', 'unknown')
+            value = data.get('value')
+            
+            # Handle different value types
+            if isinstance(value, dict):
+                # Multi-value sensors (e.g., DHT22 with temperature and humidity)
+                for field_name, field_value in value.items():
+                    point = Point(sensor_id) \
+                        .tag("device_id", device_id) \
+                        .tag("sensor_type", sensor_type) \
+                        .tag("field", field_name) \
+                        .field("value", float(field_value)) \
+                        .time(time.time_ns(), write_precision='ns')
+                    
+                    write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=point)
+                    print(f"✅ Salvo no InfluxDB: {sensor_id}.{field_name}={field_value} ({device_id})")
+            else:
+                # Single-value sensors
+                point = Point(sensor_id) \
+                    .tag("device_id", device_id) \
+                    .tag("sensor_type", sensor_type) \
+                    .field("value", float(value)) \
+                    .time(time.time_ns(), write_precision='ns')
+                
+                write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=point)
+                print(f"✅ Salvo no InfluxDB: {sensor_id}={value} ({device_id})")
 
+    except json.JSONDecodeError as e:
+        print(f"❌ Erro ao decodificar JSON: {e}")
     except Exception as e:
-        print(f"Erro ao processar mensagem: {e}")
+        print(f"❌ Erro ao processar mensagem: {e}")
 
 # --- Conexão com MQTT ---
 

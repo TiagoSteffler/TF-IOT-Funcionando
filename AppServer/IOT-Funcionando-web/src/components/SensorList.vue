@@ -42,8 +42,8 @@ const parsedSensors = computed(() => {
 
 const sensorsByPin = computed(() => {
   return parsedSensors.value.slice().sort((a, b) => {
-    const pinA = Array.isArray(a.pins) ? a.pins[0] : a.pins
-    const pinB = Array.isArray(b.pins) ? b.pins[0] : b.pins
+    const pinA = a.pin
+    const pinB = b.pin
     return Number(pinA) - Number(pinB)
   })
 })
@@ -76,12 +76,28 @@ watch(() => props.deviceId, (newId) => {
     </div>
 
     <div v-else-if="sensorsByPin.length">
-      <ul>
-        <li v-for="s in sensorsByPin" :key="s.id" style="margin-bottom:8px">
-          <strong>{{ s.name || s.id }}</strong> — Pin {{ Array.isArray(s.pins) ? s.pins.join(', ') : s.pins }} — {{ s.protocol }}
-          <div style="margin-top:4px">
-            <button @click="openSetup(s)">Edit</button>
-            <button @click="openReadings(s)" style="margin-left:8px">Readings</button>
+      <ul style="list-style:none; padding:0">
+        <li v-for="s in sensorsByPin" :key="s.id" style="margin-bottom:12px; padding:12px; background:#f7fafc; border-radius:8px; border-left:4px solid #3182ce">
+          <div style="display:flex; justify-content:space-between; align-items:center">
+            <div>
+              <strong style="font-size:16px">{{ s.type || 'Unknown Sensor' }}</strong>
+              <div style="font-size:14px; color:#718096; margin-top:4px">
+                <span>📍 Pin {{ s.pin }}</span>
+                <span style="margin-left:16px">🔌 {{ s.id }}</span>
+                <span style="margin-left:16px" :style="{ color: s.enabled ? '#48bb78' : '#cbd5e0' }">
+                  {{ s.enabled ? '✅ Enabled' : '⏸️ Disabled' }}
+                </span>
+                <span style="margin-left:16px">⏱️ {{ s.sampling_interval }}ms</span>
+              </div>
+            </div>
+            <div style="display:flex; gap:8px">
+              <button @click="openSetup(s)" style="padding:6px 12px; border-radius:4px; border:none; background:#4299e1; color:white; cursor:pointer; font-weight:bold">
+                ✏️ Edit
+              </button>
+              <button @click="openReadings(s)" style="padding:6px 12px; border-radius:4px; border:none; background:#48bb78; color:white; cursor:pointer; font-weight:bold">
+                📊 Readings
+              </button>
+            </div>
           </div>
         </li>
       </ul>

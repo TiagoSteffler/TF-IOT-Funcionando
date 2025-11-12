@@ -11,6 +11,8 @@ const { selectedPin, sensors } = toRefs(props)
 
 const attachedSensor = computed(() => {
   if (!selectedPin.value) return null
+  // Sensors from API have 'pin' property (not 'pins')
+  // { id: "sensor_pin_34", pin: 34, type: "LDR", enabled: true, sampling_interval: 5000 }
   return sensors.value.find(s => Number(s.pin) === Number(selectedPin.value.number)) || null
 })
 
@@ -46,9 +48,10 @@ const openReadings = () => {
       </div>
 
       <div style="margin-top:8px" v-if="attachedSensor">
-        <p><strong>Configured Device ID:</strong> {{ attachedSensor.deviceId }}</p>
+        <p><strong>Sensor ID:</strong> {{ attachedSensor.id }}</p>
         <p><strong>Type:</strong> {{ attachedSensor.type }}</p>
-        <p><strong>Model:</strong> {{ attachedSensor.model }}</p>
+        <p><strong>Enabled:</strong> {{ attachedSensor.enabled ? 'Yes' : 'No' }}</p>
+        <p><strong>Sampling Interval:</strong> {{ attachedSensor.sampling_interval }}ms</p>
       </div>
     </div>
 
