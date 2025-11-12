@@ -3,7 +3,8 @@ import { ref, computed, watch } from 'vue'
 
 const props = defineProps({
   selectedPin: { type: Object, default: null },
-  sensors: { type: Array, default: () => [] }
+  sensors: { type: Array, default: () => [] },
+  deviceId: { type: Number, default: 1 }
 })
 const emit = defineEmits(['save-sensor', 'delete-sensor'])
 
@@ -28,7 +29,12 @@ const mode = ref('sensor') // 'sensor' or 'actuator'
 const model = ref('')
 const protocol = ref('')
 const pin = ref(props.selectedPin ? props.selectedPin.number : null)
-const deviceId = ref('')
+const sensorDeviceId = ref('')
+
+// API state
+const saving = ref(false)
+const error = ref(null)
+const successMessage = ref(null)
 
 // if editing existing sensor for the current pin, prefill
 const existing = computed(() => {
@@ -42,16 +48,23 @@ watch(existing, (v) => {
     model.value = v.model || ''
     protocol.value = v.protocol || ''
     pin.value = v.pin
-    deviceId.value = v.deviceId || ''
+    sensorDeviceId.value = v.deviceId || ''
   } else {
     // reset defaults when no existing
     mode.value = 'sensor'
     model.value = ''
     protocol.value = ''
     pin.value = props.selectedPin ? props.selectedPin.number : null
-    deviceId.value = props.selectedPin ? `dev-${props.selectedPin.number}` : ''
+    sensorDeviceId.value = props.selectedPin ? `sensor_pin_${props.selectedPin.number}` : ''
   }
 }, { immediate: true })
+
+watch(() => props.selectedPin, (newPin) => {
+  if (newPin && !existing.value) {
+    pin.value = newPin.number
+    sensorDeviceId.value = `sensor_pin_${newPin.number}`
+  }
+})
 
 const allowedPins = computed(() => {
   if (!protocol.value) return allPins.filter(p => p.usable)
@@ -61,21 +74,72 @@ const allowedPins = computed(() => {
   return allPins.filter(p => p.usable && p.capabilities.includes(cap))
 })
 
-const save = () => {
+const save = async () => {
   if (!pin.value) return
-  const sensor = {
-    id: existing.value ? existing.value.id : undefined,
-    pin: pin.value,
-    type: mode.value,
-    model: model.value,
-    protocol: protocol.value,
-    deviceId: deviceId.value
+  
+  saving.value = true
+  error.value = null
+  successMessage.value = null
+  
+  try {
+    const mqttDeviceId = `esp32_device_${props.deviceId}`
+    
+    // Prepare sensor configuration payload
+    const sensorConfig = {
+      id: sensorDeviceId.value,
+      pin: pin.value,
+      type: mode.value,
+      model: model.value,
+      protocol: protocol.value,
+      name: `${model.value || mode.value} on Pin ${pin.value}`
+    }
+    
+    // Send sensor configuration via API
+    const response = await fetch(`http://localhost:5000/${mqttDeviceId}/settings/sensors/set`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        sensors: [sensorConfig] // Send as array for multiple sensors support
+      })
+    })
+    
+    if (!response.ok) {
+      throw new Error(`Failed to save sensor: ${response.status}`)
+    }
+    
+    const result = await response.json()
+    successMessage.value = 'Sensor configuration sent to device!'
+    console.log('Sensor saved:', result)
+    
+    // Also emit to parent for local state management
+    const sensor = {
+      id: existing.value ? existing.value.id : undefined,
+      pin: pin.value,
+      type: mode.value,
+      model: model.value,
+      protocol: protocol.value,
+      deviceId: sensorDeviceId.value
+    }
+    emit('save-sensor', sensor)
+    
+    // Clear success message after 2 seconds
+    setTimeout(() => {
+      successMessage.value = null
+    }, 2000)
+    
+  } catch (err) {
+    error.value = err.message
+    console.error('Error saving sensor:', err)
+  } finally {
+    saving.value = false
   }
-  emit('save-sensor', sensor)
 }
 
 const remove = () => {
   if (!existing.value) return
+  // TODO: Add API call to remove sensor from device
   emit('delete-sensor', existing.value.id)
 }
 </script>
@@ -84,9 +148,19 @@ const remove = () => {
   <section>
     <h2>Sensor / Actuator Setup</h2>
 
+    <!-- Success message -->
+    <div v-if="successMessage" style="margin-bottom:12px; padding:12px; background:#f6ffed; border-left:4px solid #52c41a; color:#52c41a">
+      {{ successMessage }}
+    </div>
+
+    <!-- Error message -->
+    <div v-if="error" style="margin-bottom:12px; padding:12px; background:#fff2f0; border-left:4px solid #ff4d4f; color:#ff4d4f">
+      Error: {{ error }}
+    </div>
+
     <div>
       <label>Device Type</label>
-      <select v-model="mode">
+      <select v-model="mode" :disabled="saving">
         <option value="sensor">Sensor</option>
         <option value="actuator">Actuator</option>
       </select>
@@ -94,14 +168,14 @@ const remove = () => {
 
     <div style="margin-top:8px">
       <label>Model</label>
-      <select v-model="model">
+      <select v-model="model" :disabled="saving">
         <option value="">-- select model (populate later) --</option>
       </select>
     </div>
 
     <div style="margin-top:8px">
       <label>Communication / Protocol</label>
-      <select v-model="protocol">
+      <select v-model="protocol" :disabled="saving">
         <option value="">-- automatic / none --</option>
         <option>I2C</option>
         <option>OneWire</option>
@@ -114,7 +188,7 @@ const remove = () => {
 
     <div style="margin-top:8px">
       <label>Pin</label>
-      <select v-model="pin">
+      <select v-model="pin" :disabled="saving">
         <option :value="null">-- select pin --</option>
         <option v-for="p in allowedPins" :key="p.number" :value="p.number">GPIO {{ p.number }} - {{ p.capabilities.join(', ') }}</option>
       </select>
@@ -122,13 +196,15 @@ const remove = () => {
     </div>
 
     <div style="margin-top:8px">
-      <label>Device ID</label>
-      <input v-model="deviceId" />
+      <label>Sensor ID</label>
+      <input v-model="sensorDeviceId" :disabled="saving" />
     </div>
 
     <div style="margin-top:12px">
-      <button @click="save">Save Settings</button>
-      <button v-if="existing" @click="remove" style="margin-left:8px">Delete</button>
+      <button @click="save" :disabled="saving">
+        {{ saving ? 'Saving...' : 'Save Settings' }}
+      </button>
+      <button v-if="existing" @click="remove" style="margin-left:8px" :disabled="saving">Delete</button>
     </div>
   </section>
 </template>

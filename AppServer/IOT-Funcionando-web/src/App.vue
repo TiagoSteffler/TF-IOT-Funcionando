@@ -79,17 +79,33 @@ const getPinDetails = (pinNumber) => {
   return { number: Number(pinNumber), capabilities, usable }
 }
 
-const handleOpenSetup = (sensorId) => {
-  if (sensorId) {
-    const s = sensors.value.find(x => x.id === sensorId)
+const handleOpenSetup = (sensorIdOrPin) => {
+  // If it's a sensor ID from the list, extract the pin number
+  if (typeof sensorIdOrPin === 'string' && sensorIdOrPin.startsWith('sensor_pin_')) {
+    const pinNumber = parseInt(sensorIdOrPin.replace('sensor_pin_', ''))
+    selectedPin.value = getPinDetails(pinNumber)
+  } else if (typeof sensorIdOrPin === 'number') {
+    // Direct pin number
+    selectedPin.value = getPinDetails(sensorIdOrPin)
+  } else {
+    // Try to find in local sensors array (legacy)
+    const s = sensors.value.find(x => x.id === sensorIdOrPin)
     if (s) selectedPin.value = getPinDetails(Number(s.pin))
   }
   activeView.value = 'SensorSetup'
 }
 
-const handleOpenReadings = (sensorId) => {
-  if (sensorId) {
-    const s = sensors.value.find(x => x.id === sensorId)
+const handleOpenReadings = (sensorIdOrPin) => {
+  // If it's a sensor ID from the list, extract the pin number
+  if (typeof sensorIdOrPin === 'string' && sensorIdOrPin.startsWith('sensor_pin_')) {
+    const pinNumber = parseInt(sensorIdOrPin.replace('sensor_pin_', ''))
+    selectedPin.value = getPinDetails(pinNumber)
+  } else if (typeof sensorIdOrPin === 'number') {
+    // Direct pin number
+    selectedPin.value = getPinDetails(sensorIdOrPin)
+  } else {
+    // Try to find in local sensors array (legacy)
+    const s = sensors.value.find(x => x.id === sensorIdOrPin)
     if (s) selectedPin.value = getPinDetails(Number(s.pin))
   }
   activeView.value = 'SensorReadings'
