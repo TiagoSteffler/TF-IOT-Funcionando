@@ -8,6 +8,7 @@ from influxdb_client.client.write_api import SYNCHRONOUS
 import json
 import threading
 import time
+import requests
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
@@ -17,6 +18,8 @@ INFLUXDB_URL = os.getenv('INFLUXDB_URL')
 INFLUXDB_TOKEN = os.getenv('INFLUXDB_TOKEN')
 INFLUXDB_ORG = os.getenv('INFLUXDB_ORG')
 INFLUXDB_BUCKET = os.getenv('INFLUXDB_BUCKET', 'sensores') # Valor padrão 'sensores'
+INFLUXDB_HEADER = {'Authorization':f'Token {INFLUXDB_TOKEN}'}
+ENDPOINT_NAME = os.getenv('ENDPOINT_NAME')
 MQTT_BROKER_HOST = os.getenv('MQTT_BROKER_HOST')
 MQTT_BROKER_PORT = int(os.getenv('MQTT_BROKER_PORT'))
 MQTT_TOPIC = "callback/#" 
@@ -99,9 +102,52 @@ except KeyboardInterrupt:
     influx_client.close()
     print("Desconectado.")
 
+# # --- Config Endpoint InfluxDB ---
+# try:
+#     #Recebe o ID da org
+#     url_orgs = f"{INFLUXDB_URL}/api/v2/orgs"
+#     response = requests.get(url_orgs, headers=INFLUXDB_HEADER)
+#     response.raise_for_status()
+#     orgs = response.json().get("orgs")
+#     for o in orgs:
+#         if o.get("name") == INFLUXDB_ORG:
+#             INFLUX_ORG_ID = o.get("id")
+#             print(f"id de {INFLUXDB_ORG}: {INFLUX_ORG_ID}")
+#             break
+#     #Verifica se existe o ENDPOINT
+#     params =  {
+#         'orgID' : INFLUX_ORG_ID
+#     }
+#     url_not_endpoints = f"{INFLUXDB_URL}/api/v2/notificationEndpoints"
+#     response = requests.get(url_not_endpoints,headers=INFLUXDB_HEADER,params=params)
+#     response.raise_for_status()
+#     notEnd = response.json().get("notificationEndpoints")
+#     existe_endpoint = False
+#     for n in notEnd:
+#         if n.get("name") == ENDPOINT_NAME:
+#             print(f"{ENDPOINT_NAME} já existe")
+#             #Pode ser adicionado uma atualização dos dados do endpoint aqui
+#             existe_endpoint = True
+#             break
+#     if not existe_endpoint:
+#         print("Criando o endpoint...")
+#         payload = {
+#             'authMethod': 'none',
+#             'method' : 'POST',
+#             'name' : ENDPOINT_NAME,
+#             'type' : 'http',
+#             'url' : 'http://api_service:5000/rules/webhook',
+#             'orgID' : INFLUX_ORG_ID,
+#             'status' : 'active'
+#         }
+#         response = requests.post(url_not_endpoints,headers=INFLUXDB_HEADER,json=payload)
+#         response.raise_for_status()
+# except Exception as e:
+#     print(f"Não foi possível criar o endpoint no influxDB: {e}")
+
 # --- Rotas da API ---
 @app.route('/health')
-def health_check():
+def health_rules():
     """Verifica se a API está no ar."""
     return jsonify({"status": "API Server is running"})
 
@@ -478,6 +524,42 @@ def set_config(device_id):
         print(f"Erro ao processar /config: {e}")
         return jsonify({"error": str(e)}), 400 # 400 Bad Request
 
+
+@app.route('/rules', methods=['GET','POST','DELETE'])
+def rules_api():
+    if request.method == 'GET':
+        try:
+            pass
+        except Exception as e:
+            print(f"Erro ao processar /config: {e}")
+            return jsonify({"error": str(e)}), 400 # 400 Bad Request
+    elif request.method == 'POST':
+        try:
+            rules_config = request.get_json()
+            if not rules_config:
+                return jsonify({"error": "Invalid payload. Expected JSON object"}), 400
+            pass
+        except Exception as e:
+            print(f"Erro ao processar /config: {e}")
+            return jsonify({"error": str(e)}), 400 # 400 Bad Request
+    elif request.method == 'DELETE':
+        try:
+            pass
+        except Exception as e:
+            print(f"Erro ao processar /config: {e}")
+            return jsonify({"error": str(e)}), 400 # 400 Bad Request
+
+# @app.route('/rules/webhook', methods=['POST'])  
+# def post_rules_webhook():
+#     try:
+#         rules_json = request.get_json()
+#         if not rules_json:
+#             return jsonify({"error": "Invalid payload. Expected JSON object"}), 400
+        
+#     except Exception as e:
+#         print(f"Erro ao processar /config: {e}")
+#         return jsonify({"error": str(e)}), 400 # 400 Bad Request
+    
 if __name__ == '__main__':
     print("Iniciando API server Flask...")
     app.run(host='0.0.0.0', port=5000, debug=True) # debug=True é útil para desenvolvimento

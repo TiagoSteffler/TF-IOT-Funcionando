@@ -2,3 +2,4 @@ flask
 flask-cors
 paho-mqtt
 influxdb-client
+requests
