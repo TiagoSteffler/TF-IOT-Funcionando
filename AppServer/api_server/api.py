@@ -29,6 +29,11 @@ MQTT_TOPIC = "callback/#"
 config_cache = {}
 config_cache_lock = threading.Lock()
 
+# --- Cache for storing rules responses ---
+# Structure: { "rules": {...}, "timestamp": ... }
+rules_cache = {}
+rules_cache_lock = threading.Lock()
+
 # --- MQTT Callbacks ---
 def on_message(client, userdata, message):
     """
@@ -61,6 +66,21 @@ def on_message(client, userdata, message):
                 }
             
             print(f"✅ Configuração '{config_type}' de '{device_id}' armazenada no cache")
+            return
+        
+        # Novo: Tratar resposta de regras via callback/rules
+        if topic == 'callback/rules':
+            data = json.loads(payload)
+            
+            # Armazena no cache de regras
+            with rules_cache_lock:
+                rules_cache['rules'] = {
+                    'data': data,
+                    'timestamp': time.time()
+                }
+            
+            print(f"✅ Regras recebidas e armazenadas no cache")
+            return
     
     except Exception as e:
         print(f"❌ Erro ao processar mensagem MQTT: {e}")
@@ -72,6 +92,7 @@ def on_connect(client, userdata, flags, rc):
         # Subscreve aos tópicos de resposta dos ESP32s
         client.subscribe("config/+/sensors")  # + é wildcard para qualquer device_id
         client.subscribe("config/+/wifi")
+        client.subscribe(MQTT_TOPIC)
         print("📡 Subscrito aos tópicos: config/+/sensors, config/+/wifi")
     else:
         print(f"❌ Falha na conexão MQTT. Código de retorno: {rc}")
@@ -102,48 +123,6 @@ except KeyboardInterrupt:
     influx_client.close()
     print("Desconectado.")
 
-# # --- Config Endpoint InfluxDB ---
-# try:
-#     #Recebe o ID da org
-#     url_orgs = f"{INFLUXDB_URL}/api/v2/orgs"
-#     response = requests.get(url_orgs, headers=INFLUXDB_HEADER)
-#     response.raise_for_status()
-#     orgs = response.json().get("orgs")
-#     for o in orgs:
-#         if o.get("name") == INFLUXDB_ORG:
-#             INFLUX_ORG_ID = o.get("id")
-#             print(f"id de {INFLUXDB_ORG}: {INFLUX_ORG_ID}")
-#             break
-#     #Verifica se existe o ENDPOINT
-#     params =  {
-#         'orgID' : INFLUX_ORG_ID
-#     }
-#     url_not_endpoints = f"{INFLUXDB_URL}/api/v2/notificationEndpoints"
-#     response = requests.get(url_not_endpoints,headers=INFLUXDB_HEADER,params=params)
-#     response.raise_for_status()
-#     notEnd = response.json().get("notificationEndpoints")
-#     existe_endpoint = False
-#     for n in notEnd:
-#         if n.get("name") == ENDPOINT_NAME:
-#             print(f"{ENDPOINT_NAME} já existe")
-#             #Pode ser adicionado uma atualização dos dados do endpoint aqui
-#             existe_endpoint = True
-#             break
-#     if not existe_endpoint:
-#         print("Criando o endpoint...")
-#         payload = {
-#             'authMethod': 'none',
-#             'method' : 'POST',
-#             'name' : ENDPOINT_NAME,
-#             'type' : 'http',
-#             'url' : 'http://api_service:5000/rules/webhook',
-#             'orgID' : INFLUX_ORG_ID,
-#             'status' : 'active'
-#         }
-#         response = requests.post(url_not_endpoints,headers=INFLUXDB_HEADER,json=payload)
-#         response.raise_for_status()
-# except Exception as e:
-#     print(f"Não foi possível criar o endpoint no influxDB: {e}")
 
 # --- Rotas da API ---
 @app.route('/health')
@@ -524,41 +503,209 @@ def set_config(device_id):
         print(f"Erro ao processar /config: {e}")
         return jsonify({"error": str(e)}), 400 # 400 Bad Request
 
-
-@app.route('/rules', methods=['GET','POST','DELETE'])
-def rules_api():
+@app.route('/rules', methods=['GET', 'POST', 'PUT', 'DELETE'])
+def manage_rules():
+    """
+    Gerencia regras de automação globais (podem envolver múltiplos dispositivos)
+    
+    GET /rules - Lista todas as regras
+    POST /rules - Cria nova regra
+    PUT /rules - Atualiza regra (rule_id no JSON)
+    DELETE /rules - Remove regra (rule_id no JSON)
+    """
+    
     if request.method == 'GET':
-        try:
-            pass
-        except Exception as e:
-            print(f"Erro ao processar /config: {e}")
-            return jsonify({"error": str(e)}), 400 # 400 Bad Request
+        return _get_rules()
     elif request.method == 'POST':
-        try:
-            rules_config = request.get_json()
-            if not rules_config:
-                return jsonify({"error": "Invalid payload. Expected JSON object"}), 400
-            pass
-        except Exception as e:
-            print(f"Erro ao processar /config: {e}")
-            return jsonify({"error": str(e)}), 400 # 400 Bad Request
+        return _create_rule()
+    elif request.method == 'PUT':
+        return _update_rule()
     elif request.method == 'DELETE':
-        try:
-            pass
-        except Exception as e:
-            print(f"Erro ao processar /config: {e}")
-            return jsonify({"error": str(e)}), 400 # 400 Bad Request
+        return _delete_rule()
 
-# @app.route('/rules/webhook', methods=['POST'])  
-# def post_rules_webhook():
-#     try:
-#         rules_json = request.get_json()
-#         if not rules_json:
-#             return jsonify({"error": "Invalid payload. Expected JSON object"}), 400
+def _get_rules():
+    """
+    Solicita listagem de todas as regras ao ingestor via MQTT e aguarda resposta.
+    Similar a get_sensors_config().
+    Tópico: rules/get
+    Resposta esperada em: callback/rules
+    Timeout: 5 segundos
+    """
+    try:
+        # Primeiro, verifica se temos cache recente (< 10 segundos)
+        with rules_cache_lock:
+            if 'rules' in rules_cache:
+                cache_age = time.time() - rules_cache['rules']['timestamp']
+                if cache_age < 10:  # Cache válido por 10 segundos
+                    print(f"📦 Retornando regras do cache (idade: {cache_age:.1f}s)")
+                    return jsonify(rules_cache['rules']['data'])
         
-#     except Exception as e:
-#         print(f"Erro ao processar /config: {e}")
-#         return jsonify({"error": str(e)}), 400 # 400 Bad Request
+        # Limpa cache antigo
+        with rules_cache_lock:
+            if 'rules' in rules_cache:
+                del rules_cache['rules']
+        
+        # Envia requisição MQTT
+        request_topic = "rules/get"
+        mqtt_client.publish(request_topic, "{}", qos=1)
+        print(f"📤 Solicitação enviada via MQTT: {request_topic}")
+        
+        # Aguarda resposta (polling no cache)
+        timeout = 5  # segundos
+        start_time = time.time()
+        
+        while (time.time() - start_time) < timeout:
+            with rules_cache_lock:
+                if 'rules' in rules_cache:
+                    elapsed = time.time() - start_time
+                    print(f"✅ Resposta recebida após {elapsed:.2f}s")
+                    return jsonify(rules_cache['rules']['data'])
+            time.sleep(0.1)  # Aguarda 100ms antes de verificar novamente
+        
+        # Timeout - Ingestor não respondeu
+        print(f"⏱️ Timeout aguardando resposta de regras")
+        return jsonify({
+            "error": "timeout",
+            "message": f"Ingestor não respondeu em {timeout} segundos. Verifique se o serviço está online.",
+            "rules": []
+        }), 408  # 408 Request Timeout
+
+    except Exception as e:
+        print(f"Erro ao solicitar regras: {e}")
+        return jsonify({"error": str(e)}), 500
+
+def _create_rule():
+    """
+    Cria uma nova regra de automação (pode envolver múltiplos dispositivos).
+    
+    Body (JSON):
+{
+  "id_regra": "1",
+  "condicao": [
+    {
+      "tipo": "limite",
+      "tempo": 5,
+      "id_device": "12",
+      "id_sensor": "23",
+      "medida": "temperatura",
+      "operador": ">",
+      "valor_limite": 80
+    }
+  ],
+  "entao": [
+    {
+      "id_device": "13",
+      "id_atuador": "15",
+      "tempo": 5,
+      "valor": 1
+    }
+  ],
+  "senao": []
+}
+    """
+    try:
+        rule_data = request.get_json()
+        
+        if not rule_data:
+            return jsonify({"error": "Empty rule data"}), 400
+        
+        if 'id_regra' not in rule_data or 'condicao' not in rule_data or 'entao' not in rule_data or 'senao' not in rule_data:
+            return jsonify({"error": "Missing required fields: name, conditions, actions"}), 400
+        
+        topic = "rules/add"
+        payload = json.dumps(rule_data)
+        
+        (result, mid) = mqtt_client.publish(topic, payload, qos=1)
+        
+        if result == mqtt.MQTT_ERR_SUCCESS:
+            return jsonify({
+                "status": "rule_created",
+                "rule": rule_data,
+                "message": "Rule sent to ingestor for processing"
+            }), 201
+        else:
+            return jsonify({"error": f"MQTT publish failed (code: {result})"}), 500
+            
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+def _update_rule():
+    """
+    Atualiza uma regra existente.
+    O rule_id deve estar no JSON do body.
+    
+    Body (JSON):
+    {
+      "id_regra": "rule_123",
+      "name": "Regra atualizada",
+      "enabled": false,
+      ...
+    }
+    """
+    try:
+        rule_data = request.get_json()
+        
+        if not rule_data:
+            return jsonify({"error": "Empty rule data"}), 400
+        
+        rule_id = rule_data.get('id_regra')
+        
+        if not rule_id:
+            return jsonify({"error": "rule_id is required in JSON body"}), 400
+        
+        topic = "rules/update"
+        payload = json.dumps(rule_data)
+        
+        (result, mid) = mqtt_client.publish(topic, payload, qos=1)
+        
+        if result == mqtt.MQTT_ERR_SUCCESS:
+            return jsonify({
+                "status": "rule_updated",
+                "rule_id": rule_id,
+                "message": "Rule update sent to ingestor"
+            }), 200
+        else:
+            return jsonify({"error": f"MQTT publish failed (code: {result})"}), 500
+            
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+def _delete_rule():
+    """
+    Remove uma regra.
+    O id_regra deve estar no JSON do body.
+    Body (JSON):
+    {
+      "id_regra": "rule_123"
+    }
+    """
+    try:
+        rule_data = request.get_json()
+        if not rule_data:
+            return jsonify({"error": "Empty rule data"}), 400
+
+        rule_id = rule_data.get('id_regra')
+        if not rule_id:
+            return jsonify({"error": "id_regra is required in JSON body"}), 400
+
+        topic = "rules/delete"
+        # publica com a chave que o ingestor espera: 'id_regra'
+        payload = json.dumps({"id_regra": rule_id})
+
+        (result, mid) = mqtt_client.publish(topic, payload, qos=1)
+
+        if result == mqtt.MQTT_ERR_SUCCESS:
+            return jsonify({
+                "status": "rule_deleted",
+                "id_regra": rule_id,
+                "message": "Rule deletion sent to ingestor"
+            }), 200
+        else:
+            return jsonify({"error": f"MQTT publish failed (code: {result})"}), 500
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
     
 if __name__ == '__main__':
     print("Iniciando API server Flask...")

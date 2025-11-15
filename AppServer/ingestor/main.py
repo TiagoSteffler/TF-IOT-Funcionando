@@ -19,7 +19,7 @@ MQTT_BROKER_PORT = int(os.getenv('MQTT_BROKER_PORT'))
 # Tópico MQTT para escutar
 # Pattern: {device_id}/sensors/{sensor_id}/data
 MQTT_TOPIC = "+/sensors/+/data"  # + is wildcard for any device_id and sensor_id 
-MQTT_REGRA_TOPIC = "regra/+"
+MQTT_REGRA_TOPIC = "rules/+"
 MQTT_CALLBACK_TOPIC ="callback/regras"
 
 # --- Conexão com InfluxDB ---
@@ -68,34 +68,82 @@ def on_disconnect(client, userdata, disconnect_flags, reason_code, properties):
         print("O Paho-MQTT tentará reconectar automaticamente...")
 
 
-regras= {}
+regras = {}
+
 def cria_regra(regra):
     try:
-        id = regra['id']
+        id = regra['id_regra']
         for c in regra['condicao']:
-            c['state']=False
-            if c['tipo']=='limite':
-                c['last_state']=0
-                c['time_stamp']=time.time()
-            if c['tipo']=='senha':
-                c['buffer']=''
-        regras[id]=regra
-        print(f"Regra {id} criada com sucesso.")
+            c['state'] = False
+            if c['tipo'] == 'limite':
+                c['last_state'] = 0
+                c['time_stamp'] = time.time()
+            if c['tipo'] == 'senha':
+                c['buffer'] = ''
+        regras[id] = regra
+        print(f"✅ Regra {id} criada com sucesso.")
     except Exception as e:
         print(f"❌ Erro ao adicionar regra: {e}")
 
+def atualiza_regra(regra):
+    """
+    Atualiza uma regra existente.
+    Se a regra não existe, cria uma nova.
+    """
+    try:
+        id = regra.get('id_regra')
+        
+        if not id:
+            print(f"❌ Erro ao atualizar regra: 'id_regra' não fornecido")
+            return
+        
+        if id in regras:
+            # Regra existe - atualiza
+            # Mantém estado anterior das condições se não forem recriadas
+            old_conditions = regras[id].get('condicao', [])
+            
+            # Atualiza a regra com novos dados
+            regras[id].update(regra)
+            
+            # Reinicializa o estado das condições
+            for c in regras[id]['condicao']:
+                c['state'] = False
+                if c['tipo'] == 'limite':
+                    c['last_state'] = 0
+                    c['time_stamp'] = time.time()
+                if c['tipo'] == 'senha':
+                    c['buffer'] = ''
+            
+            print(f"✅ Regra {id} atualizada com sucesso.")
+        else:
+            # Regra não existe - cria como nova
+            print(f"⚠️ Regra {id} não encontrada. Criando como nova...")
+            cria_regra(regra)
+            
+    except Exception as e:
+        print(f"❌ Erro ao atualizar regra: {e}")
+
 def deleta_regra(regra):
     try:
-        id = regra['id']
-        del regras[id]
-        print(f"Regra {id} deletada com sucesso.")
+        id = regra.get('id_regra')
+        
+        if not id:
+            print(f"❌ Erro ao deletar regra: 'id_regra' não fornecido")
+            return
+        
+        if id in regras:
+            del regras[id]
+            print(f"✅ Regra {id} deletada com sucesso.")
+        else:
+            print(f"⚠️ Regra {id} não encontrada para deletar.")
+            
     except Exception as e:
         print(f"❌ Erro ao deletar regra: {e}") 
 
 def get_regra():
     try:
-        mqtt_client.publish(MQTT_CALLBACK_TOPIC,json.dumps(regras))
-        print(f"Regras publicadas com sucesso.")
+        mqtt_client.publish("callback/rules", json.dumps(regras))
+        print(f"✅ Regras publicadas com sucesso no callback/rules.")
     except Exception as e:
         print(f"❌ Erro ao retornar regras: {e}") 
 
@@ -166,7 +214,7 @@ def verificar_regras(id_device, id_sensor, value):
                             
                         state = operadores[c['operador']](valor,c['valor_limite'])
                         
-                        if state != c['state']:
+                        if state != c['last_state']:
                             c['last_state'] = state
                             c['time_stamp'] = time.time()
                         
@@ -190,12 +238,6 @@ def verificar_regras(id_device, id_sensor, value):
                     elif c['tipo'] == 'senha':
                         pass # ... sua lógica de senha ...
                 
-                # Se qualquer condição NÃO específica para este sensor/device for Falsa,
-                # a resposta geral também deve ser Falsa.
-                # (Esta parte depende de como você quer que o 'E' lógico funcione)
-                # ...
-                        
-            # --- Fim do loop de condições ---
             
             if resposta:
                 for e in regra["entao"]:
@@ -230,29 +272,31 @@ def on_message(client, userdata, msg):
         data = json.loads(payload)
         parts = msg.topic.split('/')
 
-        if len(parts) >= 2 and parts[0] == 'regra':
+        # Tratar mensagens de regras
+        if len(parts) >= 2 and parts[0] == 'rules':
             if parts[1] == 'add':
                 cria_regra(data)
+            elif parts[1] == 'update':
+                atualiza_regra(data)
             elif parts[1] == 'delete':
                 deleta_regra(data)
             elif parts[1] == 'get':
                 get_regra()
+            return
 
+        # Tratar mensagens de sensores (dados)
         if len(parts) >= 4 and parts[1] == 'sensors' and parts[3] == 'data':
             device_id = data.get('device_id') or parts[0]
             sensor_id = data.get('sensor_id') or parts[2]
             sensor_type = data.get('type', 'unknown')
             value = data.get('value')
             
-            # ✅ CORREÇÃO:
-            # Simplesmente chame a função síncrona.
-            # Ela é rápida. As partes lentas ('executar')
-            # serão colocadas em threads por ela.
+            # Verifica regras
             verificar_regras(device_id, sensor_id, value)
             
-            # O resto do seu código de salvamento no InfluxDB...
+            # Salva no InfluxDB
             if isinstance(value, dict):
-                # Multi-value sensors...
+                # Multi-value sensors (ex: DHT22 com temperatura e umidade)
                 for field_name, field_value in value.items():
                     point = Point(sensor_id) \
                         .tag("device_id", device_id) \
@@ -279,7 +323,7 @@ def on_message(client, userdata, msg):
     except Exception as e:
         print(f"❌ Erro ao processar mensagem: {e}")
         import traceback
-        traceback.print_exc() # Imprime o stack trace completo para debug
+        traceback.print_exc()
 
 # --- Conexão com MQTT ---
 
@@ -299,12 +343,19 @@ except Exception as e:
     print(f"Não foi possível conectar ao Broker MQTT: {e}")
     exit(1)
 
-# Loop principal para manter o script rodando
-# loop_forever() gerencia reconexões automaticamente
+# Loop em thread separada (NÃO bloqueante)
+# loop_start() roda o MQTT em background thread
+mqtt_client.loop_start()
+print("✅ MQTT loop iniciado em thread separada")
+
+# Main thread fica livre para outras operações
 try:
-    mqtt_client.loop_forever()
+    # Mantém o script ativo
+    while True:
+        time.sleep(1)
 except KeyboardInterrupt:
-    print("Script interrompido pelo usuário. Desconectando...")
+    print("\n🛑 Script interrompido pelo usuário. Desconectando...")
+    mqtt_client.loop_stop()  # Para o loop de background
     mqtt_client.disconnect()
     influx_client.close()
-    print("Desconectado.")
+    print("✅ Desconectado.")
