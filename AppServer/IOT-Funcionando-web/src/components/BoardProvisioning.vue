@@ -80,157 +80,253 @@ const cancel = () => {
   <section>
     <h2>Add New ESP32 Board</h2>
 
-    <!-- Step 1: Instructions -->
-    <div v-if="step === 1" style="margin-top:16px">
-      <div style="background:#e6f7ff; border-left:4px solid #1890ff; padding:12px; margin-bottom:16px">
-        <h3 style="margin-top:0">Instructions</h3>
-        <ol style="margin:8px 0; padding-left:20px">
+    <!-- STEP 1: Instructions -->
+    <div v-if="step === 1">
+
+      <div class="alert info">
+        <h3>Instructions</h3>
+        <ol>
           <li>Power on your new ESP32 board</li>
-          <li>The ESP32 will start in AP mode (Access Point)</li>
-          <li>Connect your computer to the ESP32's WiFi network (usually named "ESP32-Setup" or similar)</li>
-          <li>Once connected, click "Start Setup" below</li>
-          <li>Fill in the WiFi credentials and MQTT settings</li>
-          <li>Click "Send Configuration" - the ESP32 will restart</li>
-          <li>Reconnect to your regular WiFi network</li>
+          <li>The ESP32 will start in AP mode</li>
+          <li>Connect to its WiFi (ESP32-Setup)</li>
+          <li>Click “Start Setup”</li>
+          <li>Fill WiFi + MQTT settings</li>
+          <li>Click “Send Configuration”</li>
+          <li>Reconnect to your normal WiFi</li>
         </ol>
       </div>
 
-      <div style="margin-top:16px">
-        <p><strong>Board will be assigned Device ID:</strong> {{ nextDeviceId }}</p>
-        <p><strong>Default MQTT ID:</strong> esp32_device_{{ nextDeviceId }}</p>
+      <div class="field-block">
+        <label>Assigned Device ID</label>
+        <div class="static-text">{{ nextDeviceId }}</div>
+      </div>
+
+      <div class="field-block">
+        <label>Default MQTT ID</label>
+        <div class="static-text">esp32_device_{{ nextDeviceId }}</div>
       </div>
 
       <div style="margin-top:20px">
-        <button @click="startProvisioning" style="background:#1890ff; color:white; padding:10px 20px">
-          Start Setup
-        </button>
-        <button @click="cancel" style="margin-left:8px">
-          Cancel
-        </button>
+        <button @click="startProvisioning">Start Setup</button>
+        <button @click="cancel" class="secondary">Cancel</button>
       </div>
     </div>
 
-    <!-- Step 2: Configuration Form -->
-    <div v-if="step === 2" style="margin-top:16px">
-      <div style="background:#fff7e6; border-left:4px solid #fa8c16; padding:12px; margin-bottom:16px">
-        <p style="margin:0"><strong>⚠️ Make sure you're connected to the ESP32's AP network</strong></p>
+    <!-- STEP 2: Configuration Form -->
+    <div v-if="step === 2">
+
+      <div class="alert warn">
+        <strong>⚠️ Make sure you're connected to the ESP32 AP</strong>
       </div>
 
-      <div style="margin-top:12px">
-        <h3>Board Information</h3>
-        <div style="margin-top:8px">
-          <label>Board Name</label>
-          <input v-model="boardName" placeholder="e.g. ESP32 Living Room" />
-        </div>
-        <div style="margin-top:8px">
-          <label>ESP32 MAC Address (optional)</label>
-          <input v-model="espMac" placeholder="e.g. AA:BB:CC:DD:EE:FF" />
-        </div>
+      <h3 class="group-title">Board Information</h3>
+
+      <div class="field-block">
+        <label>Board Name</label>
+        <input v-model="boardName" placeholder="e.g. ESP32 Living Room" />
+      </div>
+
+      <div class="field-block">
+        <label>ESP32 MAC Address (optional)</label>
+        <input v-model="espMac" placeholder="AA:BB:CC:DD:EE:FF" />
+      </div>
+
+      <h3 class="group-title">MQTT Settings</h3>
+
+      <div class="field-block">
+        <label>Broker IP</label>
+        <input v-model="mqttBroker" placeholder="192.168.1.10 or mqtt.example.com" />
+      </div>
+
+      <div class="field-block">
+        <label>Device ID (MQTT)</label>
+        <input v-model="mqttDeviceId" />
+      </div>
+
+      <h3 class="group-title">WiFi Network Settings</h3>
+
+      <div class="field-block">
+        <label>WiFi Network (SSID)</label>
+        <input v-model="wifiNetwork" placeholder="Your WiFi name" />
+      </div>
+
+      <div class="field-block">
+        <label>Password</label>
+        <input v-model="wifiPassword" type="password" placeholder="WiFi password" />
       </div>
 
       <div style="margin-top:20px">
-        <h3>MQTT Settings</h3>
-        <div style="margin-top:8px">
-          <label>Broker IP</label>
-          <input v-model="mqttBroker" placeholder="e.g. 192.168.1.10 or mqtt.example.com" />
-        </div>
-        <div style="margin-top:8px">
-          <label>Device ID (MQTT)</label>
-          <input v-model="mqttDeviceId" placeholder="e.g. esp32_device_1" />
-        </div>
-      </div>
-
-      <div style="margin-top:20px">
-        <h3>WiFi Network Settings</h3>
-        <div style="margin-top:8px">
-          <label>WiFi Network (SSID)</label>
-          <input v-model="wifiNetwork" placeholder="Your WiFi network name" />
-        </div>
-        <div style="margin-top:8px">
-          <label>Password</label>
-          <input v-model="wifiPassword" type="password" placeholder="WiFi password" />
-        </div>
-      </div>
-
-      <div style="margin-top:20px">
-        <button @click="sendConfiguration" style="background:#52c41a; color:white; padding:10px 20px">
-          Send Configuration to ESP32
-        </button>
-        <button @click="cancel" style="margin-left:8px">
-          Cancel
-        </button>
+        <button @click="sendConfiguration">Send Configuration</button>
+        <button @click="cancel" class="secondary">Cancel</button>
       </div>
     </div>
 
-    <!-- Step 3: Sending Configuration -->
-    <div v-if="step === 3" style="margin-top:16px; text-align:center">
-      <div style="margin:20px 0">
-        <div style="display:inline-block; width:40px; height:40px; border:4px solid #1890ff; border-top-color:transparent; border-radius:50%; animation:spin 1s linear infinite"></div>
-      </div>
-      <h3>Sending Configuration to ESP32...</h3>
-      <p>Please wait while the ESP32 receives the settings and restarts.</p>
-      <p style="color:#666; font-size:14px">The ESP32 will disconnect from AP mode and connect to your WiFi.</p>
+    <!-- STEP 3: SENDING -->
+    <div v-if="step === 3" class="center-area">
+      <div class="spinner"></div>
+      <h3>Sending Configuration…</h3>
+      <p>Please wait while the ESP32 restarts.</p>
     </div>
 
-    <!-- Step 4: Success -->
-    <div v-if="step === 4" style="margin-top:16px">
-      <div style="background:#f6ffed; border-left:4px solid #52c41a; padding:12px; margin-bottom:16px">
-        <h3 style="margin-top:0; color:#52c41a">✓ Configuration Sent Successfully!</h3>
-        <p style="margin:8px 0">The ESP32 is restarting and connecting to your WiFi network.</p>
+    <!-- STEP 4: SUCCESS -->
+    <div v-if="step === 4">
+
+      <div class="alert success">
+        <h3>✓ Configuration Sent Successfully!</h3>
+        <p>The ESP32 is restarting and connecting to your WiFi.</p>
       </div>
 
-      <div style="margin-top:16px">
-        <h4>Next Steps:</h4>
-        <ol style="margin:8px 0; padding-left:20px">
-          <li>Disconnect from the ESP32's AP network</li>
-          <li>Reconnect to your regular WiFi network</li>
-          <li>Wait a few seconds for the ESP32 to connect</li>
-          <li>The new board will appear in your board list</li>
-        </ol>
-      </div>
+      <h4 class="group-title">Next Steps</h4>
 
-      <div style="margin-top:20px">
-        <p style="font-size:14px; color:#666">Closing this dialog in a moment...</p>
-      </div>
+      <ol class="final-steps">
+        <li>Disconnect from ESP32 AP</li>
+        <li>Reconnect to your WiFi</li>
+        <li>Wait a few seconds</li>
+        <li>The new board will appear in your list</li>
+      </ol>
+
+      <p class="closing-hint">Closing this dialog shortly…</p>
     </div>
   </section>
 </template>
 
+
 <style scoped>
-@keyframes spin {
-  to { transform: rotate(360deg); }
+section {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 20px;
+  border-radius: 18px;
+  width: 100%;
+  box-sizing: border-box;
+  color: white;
+  font-family: Arial, sans-serif;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.25);
+}
+
+h2 {
+  margin-bottom: 16px;
+  font-size: 1.4rem;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.group-title {
+  margin-top: 24px;
+  margin-bottom: 10px;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+/* Alerts */
+.alert {
+  padding: 12px 16px;
+  font-size: 15px;
+  border-radius: 10px;
+  margin-top: 10px;
+  margin-bottom: 20px;
+}
+.alert.info {
+  background: rgba(24,144,255,0.15);
+  border-left: 4px solid #1890ff;
+}
+.alert.warn {
+  background: rgba(250,140,22,0.15);
+  border-left: 4px solid #fa8c16;
+}
+.alert.success {
+  background: rgba(82,196,26,0.15);
+  border-left: 4px solid #52c41a;
+}
+
+/* Blocks */
+.field-block {
+  width: 95%;
+  margin-top: 13px;
+  padding-left: 20px;
+  padding-right: 20px;
 }
 
 label {
+  font-size: 0.95rem;
+  font-weight: 600;
   display: block;
-  font-weight: 500;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.5);
 }
 
 input {
   width: 100%;
-  padding: 8px;
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
-  font-size: 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: white;
+  font-size: 0.95rem;
+  box-shadow: inset 0 0 10px rgba(0,0,0,0.3);
 }
-
 input:focus {
   outline: none;
-  border-color: #1890ff;
+  border-color: rgba(255,255,255,0.5);
+  background: rgba(0, 0, 0, 0.45);
 }
 
+.static-text {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.15);
+  font-size: 0.95rem;
+}
+
+/* Buttons */
 button {
-  padding: 8px 16px;
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
-  background: white;
+  width: 200px;
+  height: 55px;
+  border: none;
+  border-radius: 30px;
+  background: rgba(0, 0, 0, 0.45);
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
   cursor: pointer;
-  font-size: 14px;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.25);
+  transition: 0.2s;
+  margin-top: 10px;
+}
+button.secondary {
+  background: rgba(255,255,255,0.15);
+}
+button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 14px rgba(0,0,0,0.35);
 }
 
-button:hover {
-  border-color: #1890ff;
-  color: #1890ff;
+/* Step 3 */
+.center-area {
+  text-align: center;
+  margin-top: 30px;
+}
+.spinner {
+  width: 45px;
+  height: 45px;
+  border: 4px solid #1890ff;
+  border-top-color: transparent;
+  border-radius: 50%;
+  margin: 20px auto;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Step 4 */
+.final-steps {
+  padding-left: 20px;
+}
+.closing-hint {
+  margin-top: 18px;
+  font-size: 14px;
+  opacity: 0.8;
 }
 </style>

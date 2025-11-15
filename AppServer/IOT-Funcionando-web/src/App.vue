@@ -116,19 +116,17 @@ const handleBoardChange = (boardId) => {
 </script>
 
 <template>
-  <div id="app">
-    <!-- Top header area (10-20% of viewport) -->
-    <div class="top-area" style="border:2px solid black; height:10vh; box-sizing:border-box">
+  <div id="app" class="app-container">
+    <div class="top-area">
       <HeaderBar @view-change="onViewChange" @add-board="openBoardProvisioning" />
     </div>
 
-    <!-- Middle area: left 40% (preview) and right 60% (dynamic) -->
-    <div class="middle-area" style="display:flex; height:75vh">
-      <div class="left-area" style="width:40%; border:2px solid black; box-sizing:border-box; overflow:auto">
+    <div class="middle-area">
+      <div class="left-area">
         <ESP32Preview @pin-selected="onPinSelected" />
       </div>
 
-      <div class="right-area" style="width:60%; border:2px solid black; box-sizing:border-box; overflow:auto; padding:8px">
+      <div class="right-area">
         <!-- Board Provisioning Modal -->
         <BoardProvisioning 
           v-if="showProvisioning"
@@ -136,8 +134,7 @@ const handleBoardChange = (boardId) => {
           @provision-complete="handleProvisionComplete"
           @cancel="handleProvisionCancel"
         />
-        
-        <!-- Regular Views -->
+
         <component v-else
           :is="activeViewComponent"
           v-bind="{ selectedPin, sensors, deviceId: currentDeviceId }"
@@ -149,8 +146,7 @@ const handleBoardChange = (boardId) => {
       </div>
     </div>
 
-    <!-- Footer area (10% of viewport) -->
-    <div class="footer-area" style="border:2px solid black; height:10vh; box-sizing:border-box">
+    <div class="footer-area">
       <FooterBar 
         :boards="boards" 
         :current-board-id="currentBoardId"
@@ -161,4 +157,108 @@ const handleBoardChange = (boardId) => {
 </template>
 
 
+<style>
+html, body {
+  margin: 0 !important;
+  padding: 0 !important;
+  height: 100%;
+  overflow: hidden;
+  background: radial-gradient(circle at top left, #461248, #a93747, #f2a15f, #ffd6b6);
+  background-attachment: fixed;
+}
+</style>
+
+<style scoped>
+/* remove qualquer borda ou fundo do container raiz */
+#app {
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+/* evita qualquer fundo ocultando o degradê */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  background: transparent !important;
+  color: white;
+  font-family: Roboto, sans-serif;
+  min-height: 100vh;
+  width: 100%;
+}
+
+.top-area,
+.middle-area,
+.left-area,
+.right-area,
+.footer-area {
+  border: 3px solid rgba(255, 255, 255, 0);
+}
+
+.left-area,
+.right-area{
+  border-radius: 30px;
+  margin-left: 30px;
+  margin-right: 30px;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+/* se preferir manter bordas internas, pode colocar aqui */
+.top-area {
+  height: 15vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+}
+
+.middle-area {
+  justify-content: center;
+  display: flex;
+  height: 70vh;
+}
+
+.left-area {
+  width: 20%;
+  overflow: auto;
+  padding: 8px;
+}
+
+.right-area {
+  width: 50%;
+  overflow: auto;
+  padding: 12px;
+}
+
+.right-area {
+  overflow-y: scroll;
+}
+
+.right-area::-webkit-scrollbar {
+  display: none;
+}
+
+.right-area {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+footer {
+  margin: 0 auto;  /* garante centralização */
+}
+
+.footer-area {
+  height: 10vh;
+  width: 100%;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  margin-top: auto;  /* leva para o fundo */
+  padding: 0;        /* evita causar overflow */
+  overflow: visible; /* garante que não adiciona scroll */
+}
+
+</style>
 

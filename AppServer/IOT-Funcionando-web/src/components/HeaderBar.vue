@@ -3,41 +3,102 @@ import { ref } from 'vue'
 
 const emit = defineEmits(['view-change', 'add-board'])
 
-const addSensor = () => {
-  // open the SensorSetup view
-  emit('view-change', 'SensorSetup')
-}
-
-const addBoard = () => {
-  // emit event to open board provisioning
-  emit('add-board')
-}
+const addSensor = () => emit('view-change', 'SensorSetup')
+const addBoard = () => emit('add-board')
 
 const views = [
-  { id: 'SettingsPanel', label: 'Settings' },
-  { id: 'SensorPanel', label: 'Sensor Panel' },
-  { id: 'SensorList', label: 'List Sensors' },
-  { id: 'PinPreview', label: 'Pin Preview' },
-  { id: 'SensorReadings', label: 'Sensor Readings' },
-  { id: 'SensorSetup', label: 'Sensor / Actuator Setup' }
+  { id: 'SettingsPanel', label: '⚙ CONFIGURAÇÃO' },
+  { id: 'SensorPanel', label: '☄ PAINEL' },
+  { id: 'SensorList', label: '🗒 SENSORES' },
+  { id: 'PinPreview', label: '⚲ PINOS' },
+  { id: 'SensorReadings', label: '🕮 LEITURAS' },
+  { id: 'SensorSetup', label: '🛠 SETUP' }
 ]
 
 const selected = ref(views[0].id)
-const onChange = () => emit('view-change', selected.value)
+const changeView = (id) => {
+  selected.value = id
+  emit('view-change', id)
+}
 </script>
 
 <template>
-  <header>
-    <h1>ESP32 Dashboard - IOT Funcionando</h1>
+  <header class="header">
 
-    <div>
-      <label for="view-select" style="margin-right:6px">View:</label>
-      <select id="view-select" v-model="selected" @change="onChange">
-        <option v-for="v in views" :key="v.id" :value="v.id">{{ v.label }}</option>
-      </select>
+    <div class="button-grid">
+      <!-- Botões das views -->
+      <button
+        v-for="v in views"
+        :key="v.id"
+        :class="['view-btn', { active: selected === v.id }]"
+        @click="changeView(v.id)"
+      >
+        {{ v.label }}
+      </button>
 
-      <button @click="addSensor">Add Sensor</button>
-      <button @click="addBoard">Add Board</button>
+      <!-- Botões extras -->
+      <button class="action-btn" @click="addSensor">Add Sensor</button>
+      <button class="action-btn" @click="addBoard">Add Board</button>
     </div>
   </header>
 </template>
+
+<style scoped>
+.header {
+  height: 80px; /* usa px */
+  justify-content: center;
+  align-items: center;
+  color: white;
+  display: flex;
+  white-space: nowrap; /* impede quebra */
+}
+
+/* grade de botões */
+.button-grid {
+  display: flex;
+  flex-wrap: nowrap; /* 🚫 impede quebrar linha */
+  gap: 30px; /* px fixo */
+}
+
+.view-btn,
+.action-btn {
+  width: 190px;
+  height: 60px;
+
+  padding: 8px 14px;
+  border: none;
+  border-radius: 30px;
+
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+  text-shadow: 1px 1px 10px rgba(0, 0, 0, 0.6);
+
+  cursor: pointer;
+  transition: 0.15s;
+  white-space: nowrap; /* texto nunca quebra */
+}
+
+/* botões das views */
+.view-btn {
+  background: transparent;
+
+}
+
+.action-btn {
+  background: rgba(0, 0, 0, 0.5);
+
+}
+
+.view-btn:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.view-btn.active {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.action-btn:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+</style>

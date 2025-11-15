@@ -84,7 +84,7 @@ const remove = () => {
   <section>
     <h2>Sensor / Actuator Setup</h2>
 
-    <div>
+    <div class="field-block">
       <label>Device Type</label>
       <select v-model="mode">
         <option value="sensor">Sensor</option>
@@ -92,14 +92,14 @@ const remove = () => {
       </select>
     </div>
 
-    <div style="margin-top:8px">
+    <div class="field-block">
       <label>Model</label>
       <select v-model="model">
         <option value="">-- select model (populate later) --</option>
       </select>
     </div>
 
-    <div style="margin-top:8px">
+    <div class="field-block">
       <label>Communication / Protocol</label>
       <select v-model="protocol">
         <option value="">-- automatic / none --</option>
@@ -112,16 +112,24 @@ const remove = () => {
       </select>
     </div>
 
-    <div style="margin-top:8px">
+    <div class="field-block">
       <label>Pin</label>
       <select v-model="pin">
         <option :value="null">-- select pin --</option>
-        <option v-for="p in allowedPins" :key="p.number" :value="p.number">GPIO {{ p.number }} - {{ p.capabilities.join(', ') }}</option>
+        <option
+          v-for="p in allowedPins"
+          :key="p.number"
+          :value="p.number"
+        >
+          GPIO {{ p.number }} - {{ p.capabilities.join(', ') }}
+        </option>
       </select>
-      <div style="font-size:12px; color:#666; margin-top:4px">Selected pin will be validated against the chosen protocol.</div>
+      <div class="info-text">
+        Selected pin will be validated against the chosen protocol.
+      </div>
     </div>
 
-    <div style="margin-top:8px">
+    <div class="field-block">
       <label>Device ID</label>
       <input v-model="deviceId" />
     </div>
@@ -132,3 +140,114 @@ const remove = () => {
     </div>
   </section>
 </template>
+
+
+
+<style scoped>
+section {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+
+  padding: 20px;
+  border-radius: 18px;
+  width: 100%;
+  box-sizing: border-box;
+
+  color: white;
+  font-family: Arial, sans-serif;
+
+  box-shadow: 0 4px 18px rgba(0,0,0,0.25);
+}
+
+/* título */
+h2 {
+  margin-bottom: 16px;
+  font-size: 1.4rem;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+/* labels */
+label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 6px;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.5);
+}
+
+/* blocos uniformes */
+.field-block {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 13px;
+  padding-left: 20px;
+  padding-right: 20px;
+  border-radius: 10px;
+}
+
+/* selects e inputs alinhados perfeitamente */
+.field-block select,
+.field-block input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: white;
+  font-size: 0.95rem;
+
+  box-shadow: inset 0 0 10px rgba(0,0,0,0.3);
+  transition: 0.2s;
+}
+
+.field-block select:focus,
+.field-block input:focus {
+  outline: none;
+  border-color: rgba(255,255,255,0.5);
+  background: rgba(0, 0, 0, 0.45);
+}
+
+/* texto de info */
+.info-text {
+  font-size: 12px;
+  color: #ccc;
+  margin-top: 6px;
+}
+
+/* botões */
+button {
+  width: 180px;
+  height: 55px;
+
+  padding: 8px 14px;
+  border: none;
+  border-radius: 30px;
+  background-color: rgba(0, 0, 0, 0.5);
+
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+  text-shadow: 1px 1px 10px rgba(0, 0, 0, 0.6);
+
+  cursor: pointer;
+  transition: 0.15s;
+  white-space: nowrap;
+
+  box-shadow: 0 3px 10px rgba(0,0,0,0.25);
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 14px rgba(0,0,0,0.35);
+}
+
+button:disabled {
+  background: rgba(255, 255, 255, 0.15);
+  cursor: not-allowed;
+  box-shadow: none;
+  opacity: 0.5;
+}
+</style>
