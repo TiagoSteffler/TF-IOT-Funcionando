@@ -43,12 +43,43 @@ def on_message(client, userdata, message):
     topic = message.topic
     payload = message.payload.decode('utf-8')
     
-    print(f"📨 Mensagem MQTT recebida no tópico: {topic}")
-    print(f"   Payload: {payload[:200]}...")  # Primeiros 200 caracteres
+    print(f"📨 Mensagem MQTT recebida no tópico: {topic}", flush=True)
+    print(f"   Payload: {payload}", flush=True)  # Show full payload
     
     try:
-        # Parse do tópico: config/{device_id}/{type}
         parts = topic.split('/')
+        print(f"   Topic parts: {parts}")
+        
+        # Handle new response pattern: <device_id>/settings/sensors/{operation}/response
+        if len(parts) >= 5 and parts[1] == 'settings' and parts[2] == 'sensors' and parts[4] == 'response':
+            device_id = parts[0]
+            operation = parts[3]  # 'get', 'set', or 'remove'
+            
+            print(f"   🔍 Detectado: device_id={device_id}, operation={operation}")
+            
+            # Parse response (could be JSON or simple string like "OK"/"ERROR")
+            try:
+                data = json.loads(payload) if payload.strip() else {}
+                print(f"   📦 Dados parseados (JSON): {data}")
+            except:
+                data = payload  # Simple string response
+                print(f"   📦 Dados parseados (string): {data}")
+            
+            # Store in cache with operation-specific key
+            with config_cache_lock:
+                if device_id not in config_cache:
+                    config_cache[device_id] = {}
+                cache_key = f'sensors_{operation}_response'
+                config_cache[device_id][cache_key] = {
+                    'data': data,
+                    'timestamp': time.time()
+                }
+            
+            print(f"✅ Resposta '{operation}' de '{device_id}' armazenada no cache com chave '{cache_key}'")
+            print(f"   Cache atual para {device_id}: {list(config_cache[device_id].keys())}")
+            return
+        
+        # Legacy: Parse do tópico: config/{device_id}/{type}
         if len(parts) >= 3 and parts[0] == 'config':
             device_id = parts[1]
             config_type = parts[2]  # 'sensors' ou 'wifi'
@@ -68,7 +99,7 @@ def on_message(client, userdata, message):
             print(f"✅ Configuração '{config_type}' de '{device_id}' armazenada no cache")
             return
         
-        # Novo: Tratar resposta de regras via callback/rules
+        # Tratar resposta de regras via callback/rules
         if topic == 'callback/rules':
             data = json.loads(payload)
             
@@ -89,11 +120,24 @@ def on_connect(client, userdata, flags, rc):
     """Callback quando conecta ao broker MQTT."""
     if rc == 0:
         print("✅ Conectado ao MQTT Broker com sucesso!")
+        print(f"   Broker: {MQTT_BROKER_HOST}:{MQTT_BROKER_PORT}")
+        print(f"   Client ID: {client._client_id.decode() if hasattr(client._client_id, 'decode') else client._client_id}")
+        
         # Subscreve aos tópicos de resposta dos ESP32s
-        client.subscribe("config/+/sensors")  # + é wildcard para qualquer device_id
+        client.subscribe("+/settings/sensors/get/response")  # New pattern
+        client.subscribe("+/settings/sensors/set/response")  # New pattern
+        client.subscribe("+/settings/sensors/remove/response")  # New pattern
+        client.subscribe("config/+/sensors")  # Legacy support
         client.subscribe("config/+/wifi")
         client.subscribe(MQTT_TOPIC)
-        print("📡 Subscrito aos tópicos: config/+/sensors, config/+/wifi")
+        print("📡 Subscrito aos tópicos de resposta de sensores e WiFi")
+        print("   Tópicos subscritos:")
+        print("   - +/settings/sensors/get/response")
+        print("   - +/settings/sensors/set/response")
+        print("   - +/settings/sensors/remove/response")
+        print("   - config/+/sensors")
+        print("   - config/+/wifi")
+        print(f"   - {MQTT_TOPIC}")
     else:
         print(f"❌ Falha na conexão MQTT. Código de retorno: {rc}")
 
@@ -196,45 +240,43 @@ def get_data(device_id, sensor_id):
 def get_sensors_config(device_id):
     """
     Solicita a configuração de sensores do dispositivo via MQTT e aguarda resposta.
+    Resposta esperada em: <device_id>/settings/sensors/get/response
     Timeout de 5 segundos.
     """
     try:
-        # Primeiro, verifica se temos cache recente (< 10 segundos)
-        with config_cache_lock:
-            if device_id in config_cache and 'sensors' in config_cache[device_id]:
-                cache_age = time.time() - config_cache[device_id]['sensors']['timestamp']
-                if cache_age < 10:  # Cache válido por 10 segundos
-                    print(f"📦 Retornando configuração de sensores do cache (idade: {cache_age:.1f}s)")
-                    return jsonify(config_cache[device_id]['sensors']['data'])
+        cache_key = 'sensors_get_response'
         
         # Limpa cache antigo para este device
         with config_cache_lock:
-            if device_id in config_cache and 'sensors' in config_cache[device_id]:
-                del config_cache[device_id]['sensors']
+            if device_id in config_cache and cache_key in config_cache[device_id]:
+                del config_cache[device_id][cache_key]
         
         # Envia requisição MQTT
         request_topic = f"{device_id}/settings/sensors/get"
         mqtt_client.publish(request_topic, "", qos=1)
-        print(f"📤 Solicitação enviada via MQTT: {request_topic}")
+        print(f"📤 GET sensors solicitado: {request_topic}")
+        print(f"   Aguardando resposta em: {device_id}/settings/sensors/get/response")
+        print(f"   MQTT conectado: {mqtt_client.is_connected()}")
         
         # Aguarda resposta (polling no cache)
-        timeout = 5  # segundos
+        timeout = 5
         start_time = time.time()
         
         while (time.time() - start_time) < timeout:
             with config_cache_lock:
-                if device_id in config_cache and 'sensors' in config_cache[device_id]:
-                    print(f"✅ Resposta recebida do ESP32 após {time.time() - start_time:.2f}s")
-                    return jsonify(config_cache[device_id]['sensors']['data'])
-            time.sleep(0.1)  # Aguarda 100ms antes de verificar novamente
+                if device_id in config_cache and cache_key in config_cache[device_id]:
+                    response_data = config_cache[device_id][cache_key]['data']
+                    print(f"✅ Resposta GET recebida após {time.time() - start_time:.2f}s")
+                    return jsonify(response_data)
+            time.sleep(0.1)
         
-        # Timeout - ESP32 não respondeu
+        # Timeout
         print(f"⏱️ Timeout aguardando resposta de {device_id}")
         return jsonify({
             "error": "timeout",
-            "message": f"ESP32 '{device_id}' não respondeu em {timeout} segundos. Verifique se o dispositivo está online.",
-            "sensors": []  # Retorna array vazio para não quebrar o frontend
-        }), 408  # 408 Request Timeout
+            "message": f"ESP32 '{device_id}' não respondeu em {timeout} segundos.",
+            "sensors": []
+        }), 408
 
     except Exception as e:
         print(f"Erro ao solicitar configuração de sensores: {e}")
@@ -290,11 +332,8 @@ def get_wifi_config(device_id):
 @app.route('/<device_id>/settings/sensors/set', methods=['POST'])
 def set_sensors_config(device_id):
     """
-    Envia configuração de sensores para o dispositivo via MQTT.
-    Implementa padrão read-modify-write:
-    1. Solicita configuração atual do ESP32
-    2. Mescla com as novas configurações recebidas
-    3. Envia configuração completa de volta
+    Envia apenas o sensor novo/modificado para o dispositivo via MQTT.
+    Espera resposta "OK" ou "ERROR" em: <device_id>/settings/sensors/set/response
     
     Espera JSON no body da requisição:
     {
@@ -304,14 +343,12 @@ def set_sensors_config(device_id):
           "pin": 4,
           "type": "sensor",
           "model": "DHT22",
-          "protocol": "ADC",
-          ...
+          "protocol": "ADC"
         }
       ]
     }
     """
     try:
-        # Parse do JSON recebido
         new_config = request.get_json()
         if not new_config or 'sensors' not in new_config:
             return jsonify({"error": "Invalid payload. Expected {sensors: [...]}"}), 400
@@ -320,97 +357,148 @@ def set_sensors_config(device_id):
         if not isinstance(new_sensors, list):
             return jsonify({"error": "sensors must be an array"}), 400
         
-        print(f"📝 Recebida requisição para atualizar {len(new_sensors)} sensor(es) em {device_id}")
+        print(f"📝 SET sensor(es) em {device_id}: {len(new_sensors)} sensor(es)")
         
-        # PASSO 1: Solicita configuração atual do ESP32
-        print(f"📤 Solicitando configuração atual de {device_id}...")
-        request_topic = f"config/{device_id}/sensors/get"
+        cache_key = 'sensors_set_response'
         
-        # Limpa cache antigo
+        # Limpa cache de resposta
         with config_cache_lock:
-            if device_id in config_cache and 'sensors' in config_cache[device_id]:
-                del config_cache[device_id]['sensors']
+            if device_id in config_cache and cache_key in config_cache[device_id]:
+                del config_cache[device_id][cache_key]
         
-        # Envia requisição
-        mqtt_client.publish(request_topic, "", qos=1)
+        # Envia apenas os novos sensores (não faz merge aqui)
+        topic = f"{device_id}/settings/sensors/set"
+        payload = json.dumps(new_config)
         
-        # Aguarda resposta
-        timeout = 5
-        start_time = time.time()
-        current_config = None
-        
-        while (time.time() - start_time) < timeout:
-            with config_cache_lock:
-                if device_id in config_cache and 'sensors' in config_cache[device_id]:
-                    current_config = config_cache[device_id]['sensors']['data']
-                    print(f"✅ Configuração atual recebida após {time.time() - start_time:.2f}s")
-                    break
-            time.sleep(0.1)
-        
-        # Se não recebeu resposta, assume configuração vazia
-        if current_config is None:
-            print(f"⚠️ Não foi possível obter configuração atual. Assumindo vazio.")
-            current_config = {"sensors": []}
-        
-        # PASSO 2: Mescla configurações (read-modify-write)
-        existing_sensors = current_config.get('sensors', [])
-        
-        # Cria mapa de sensores existentes por ID ou por pin
-        sensor_map = {}
-        for sensor in existing_sensors:
-            # Indexa por ID se disponível, senão por pin
-            key = sensor.get('id') or f"pin_{sensor.get('pin')}"
-            sensor_map[key] = sensor
-        
-        # Atualiza/adiciona novos sensores
-        for new_sensor in new_sensors:
-            key = new_sensor.get('id') or f"pin_{new_sensor.get('pin')}"
-            if key in sensor_map:
-                # Atualiza sensor existente (merge)
-                sensor_map[key].update(new_sensor)
-                print(f"  🔄 Atualizando sensor: {key}")
-            else:
-                # Adiciona novo sensor
-                sensor_map[key] = new_sensor
-                print(f"  ➕ Adicionando sensor: {key}")
-        
-        # Reconstrói array de sensores
-        merged_sensors = list(sensor_map.values())
-        merged_config = {"sensors": merged_sensors}
-        
-        print(f"📋 Configuração final: {len(merged_sensors)} sensor(es) total")
-        
-        # PASSO 3: Envia configuração completa para o ESP32
-        topic = f"config/{device_id}/sensors/set"
-        payload = json.dumps(merged_config)
+        print(f"📤 Publicando no MQTT:", flush=True)
+        print(f"   Tópico: {topic}", flush=True)
+        print(f"   Payload: {payload}", flush=True)
+        print(f"   Broker: {MQTT_BROKER_HOST}:{MQTT_BROKER_PORT}", flush=True)
         
         (result, mid) = mqtt_client.publish(topic, payload, qos=1)
         
-        if result == mqtt.MQTT_ERR_SUCCESS:
-            print(f"✅ Configuração de sensores enviada para {topic} (MID: {mid})")
-            
-            # Atualiza cache local
-            with config_cache_lock:
-                if device_id not in config_cache:
-                    config_cache[device_id] = {}
-                config_cache[device_id]['sensors'] = {
-                    'data': merged_config,
-                    'timestamp': time.time()
-                }
-            
-            return jsonify({
-                "status": "config_sent",
-                "device": device_id,
-                "topic": topic,
-                "sensors_count": len(merged_sensors),
-                "merged_config": merged_config
-            })
-        else:
-            print(f"❌ Erro ao publicar no MQTT (Código: {result})")
+        print(f"   Resultado da publicação: {result} (0=sucesso, outros=erro)", flush=True)
+        print(f"   Message ID: {mid}", flush=True)
+        
+        if result != mqtt.MQTT_ERR_SUCCESS:
+            print(f"❌ Falha ao publicar no MQTT broker: código {result}")
             return jsonify({"error": "Failed to publish to MQTT broker", "code": result}), 500
+        
+        print(f"📤 Sensor config enviado para {topic}")
+        print(f"   Aguardando resposta em: {device_id}/settings/sensors/set/response")
+        
+        # Aguarda resposta OK/ERROR
+        timeout = 5
+        start_time = time.time()
+        
+        while (time.time() - start_time) < timeout:
+            with config_cache_lock:
+                if device_id in config_cache and cache_key in config_cache[device_id]:
+                    response = config_cache[device_id][cache_key]['data']
+                    elapsed = time.time() - start_time
+                    
+                    if response == "OK" or (isinstance(response, dict) and response.get('status') == 'OK'):
+                        print(f"✅ ESP32 confirmou SET após {elapsed:.2f}s")
+                        return jsonify({
+                            "status": "success",
+                            "message": "Sensor configuration applied successfully",
+                            "device": device_id
+                        })
+                    else:
+                        print(f"❌ ESP32 retornou erro: {response}")
+                        return jsonify({
+                            "status": "error",
+                            "message": f"ESP32 returned error: {response}",
+                            "device": device_id
+                        }), 400
+            time.sleep(0.1)
+        
+        # Timeout
+        print(f"⏱️ Timeout aguardando confirmação de {device_id}")
+        return jsonify({
+            "error": "timeout",
+            "message": f"ESP32 '{device_id}' não confirmou a operação em {timeout} segundos."
+        }), 408
 
     except Exception as e:
-        print(f"Erro ao processar configuração de sensores: {e}")
+        print(f"Erro ao processar SET de sensores: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 400
+
+@app.route('/<device_id>/sensors/remove', methods=['POST'])
+def remove_sensor(device_id):
+    """
+    Remove um sensor do dispositivo via MQTT.
+    Espera resposta "OK" ou "ERROR" em: <device_id>/settings/sensors/remove/response
+    
+    Espera JSON no body da requisição:
+    {
+      "sensor_id": "sensor_pin_4"
+    }
+    """
+    try:
+        data = request.get_json()
+        if not data or 'sensor_id' not in data:
+            return jsonify({"error": "Invalid payload. Expected {sensor_id: ...}"}), 400
+        
+        sensor_id = data['sensor_id']
+        print(f"🗑️ REMOVE sensor '{sensor_id}' de {device_id}")
+        
+        cache_key = 'sensors_remove_response'
+        
+        # Limpa cache de resposta
+        with config_cache_lock:
+            if device_id in config_cache and cache_key in config_cache[device_id]:
+                del config_cache[device_id][cache_key]
+        
+        # Envia requisição de remoção
+        topic = f"{device_id}/settings/sensors/remove"
+        payload = json.dumps({"id": sensor_id})
+        
+        (result, mid) = mqtt_client.publish(topic, payload, qos=1)
+        
+        if result != mqtt.MQTT_ERR_SUCCESS:
+            return jsonify({"error": "Failed to publish to MQTT broker", "code": result}), 500
+        
+        print(f"📤 Remove enviado para {topic}")
+        print(f"   Aguardando resposta em: {device_id}/settings/sensors/remove/response")
+        
+        # Aguarda resposta OK/ERROR
+        timeout = 5
+        start_time = time.time()
+        
+        while (time.time() - start_time) < timeout:
+            with config_cache_lock:
+                if device_id in config_cache and cache_key in config_cache[device_id]:
+                    response = config_cache[device_id][cache_key]['data']
+                    elapsed = time.time() - start_time
+                    
+                    if response == "OK" or (isinstance(response, dict) and response.get('status') == 'OK'):
+                        print(f"✅ ESP32 confirmou REMOVE após {elapsed:.2f}s")
+                        return jsonify({
+                            "status": "success",
+                            "message": f"Sensor '{sensor_id}' removed successfully",
+                            "device": device_id
+                        })
+                    else:
+                        print(f"❌ ESP32 retornou erro: {response}")
+                        return jsonify({
+                            "status": "error",
+                            "message": f"ESP32 returned error: {response}",
+                            "device": device_id
+                        }), 400
+            time.sleep(0.1)
+        
+        # Timeout
+        print(f"⏱️ Timeout aguardando confirmação de {device_id}")
+        return jsonify({
+            "error": "timeout",
+            "message": f"ESP32 '{device_id}' não confirmou a remoção em {timeout} segundos."
+        }), 408
+
+    except Exception as e:
+        print(f"Erro ao processar REMOVE de sensor: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 400
@@ -471,6 +559,47 @@ def set_wifi_config(device_id):
 
     except Exception as e:
         print(f"Erro ao processar configuração WiFi: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 400
+
+@app.route('/<device_id>/settings/device/reset', methods=['POST'])
+def reset_device(device_id):
+    """
+    Envia comando de reset para o dispositivo via MQTT e limpa o cache local.
+    Não espera resposta - fire and forget.
+    
+    Topic: <device_id>/settings/device/reset
+    """
+    try:
+        print(f"🔄 Reset solicitado para {device_id}", flush=True)
+        
+        topic = f"{device_id}/settings/device/reset"
+        payload = ""  # Empty payload
+        
+        (result, mid) = mqtt_client.publish(topic, payload, qos=1)
+        
+        if result == mqtt.MQTT_ERR_SUCCESS:
+            print(f"✅ Comando de reset enviado para {topic} (MID: {mid})", flush=True)
+            
+            # Limpa cache local do dispositivo
+            with config_cache_lock:
+                if device_id in config_cache:
+                    del config_cache[device_id]
+                    print(f"🗑️ Cache do dispositivo {device_id} removido", flush=True)
+            
+            return jsonify({
+                "status": "reset_sent",
+                "device": device_id,
+                "topic": topic,
+                "message": "Reset command sent to device. All configuration cleared."
+            })
+        else:
+            print(f"❌ Erro ao publicar reset no MQTT (Código: {result})", flush=True)
+            return jsonify({"error": f"MQTT publish failed (code: {result})"}), 500
+
+    except Exception as e:
+        print(f"Erro ao processar reset do dispositivo: {e}", flush=True)
         import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 400
@@ -708,5 +837,8 @@ def _delete_rule():
 
     
 if __name__ == '__main__':
-    print("Iniciando API server Flask...")
-    app.run(host='0.0.0.0', port=5000, debug=True) # debug=True é útil para desenvolvimento
+    import sys
+    sys.stdout.flush()
+    sys.stderr.flush()
+    print("Iniciando API server Flask...", flush=True)
+    app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False) # debug=True é útil para desenvolvimento

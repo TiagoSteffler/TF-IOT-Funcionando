@@ -108,9 +108,53 @@ const eraseNetwork = () => {
   }
 }
 
-const eraseAll = () => {
-  if (confirm('Erase ALL configuration (network + pins)? This cannot be undone.')) {
+const eraseAll = async () => {
+  if (!confirm('Erase ALL configuration (network + sensors)? This will reset the ESP32 and cannot be undone.')) {
+    return
+  }
+  
+  saving.value = true
+  error.value = null
+  successMessage.value = null
+  
+  try {
+    const mqttId = `esp32_device_${props.deviceId}`
+    
+    // Send reset command via API
+    const response = await fetch(`http://localhost:5000/${mqttId}/settings/device/reset`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+    
+    if (!response.ok) {
+      throw new Error(`Failed to reset device: ${response.status}`)
+    }
+    
+    const result = await response.json()
+    successMessage.value = 'Reset command sent! Device configuration cleared.'
+    console.log('Device reset:', result)
+    
+    // Clear local form data
+    mqttBroker.value = ''
+    mqttDeviceId.value = `esp32_device_${props.deviceId}`
+    wifiNetwork.value = ''
+    wifiPassword.value = ''
+    
+    // Emit to parent for additional handling
     emit('erase-all')
+    
+    // Clear success message after 5 seconds
+    setTimeout(() => {
+      successMessage.value = null
+    }, 5000)
+    
+  } catch (err) {
+    error.value = err.message
+    console.error('Error resetting device:', err)
+  } finally {
+    saving.value = false
   }
 }
 
@@ -181,7 +225,9 @@ watch(() => props.deviceId, (newId) => {
 
       <div class="button-row">
         <button class="danger" @click="eraseNetwork">Erase Network Settings</button>
-        <button class="danger-strong" @click="eraseAll">Erase All Configuration</button>
+        <button class="danger-strong" @click="eraseAll" :disabled="saving">
+          {{ saving ? 'Resetting...' : 'Erase All Configuration' }}
+        </button>
       </div>
     </div>
   </section>

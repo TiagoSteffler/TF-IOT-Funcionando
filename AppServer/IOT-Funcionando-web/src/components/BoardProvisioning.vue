@@ -25,26 +25,6 @@ const espIp = ref('')
 // Pairing state
 const pairingActive = ref(false)
 
-// Auto-detect broker IP on component mount
-onMounted(async () => {
-  try {
-    const resp = await fetch('/api/network/interfaces')
-    if (resp.ok) {
-      const data = await resp.json()
-      const recommended = data.interfaces?.find(i => i.recommended)
-      if (recommended) {
-        mqttBroker.value = recommended.address
-        console.log('Auto-detected broker IP:', recommended.address)
-      } else if (data.interfaces?.length > 0) {
-        mqttBroker.value = data.interfaces[0].address
-        console.log('Using first available IP:', data.interfaces[0].address)
-      }
-    }
-  } catch (err) {
-    console.warn('Could not auto-detect broker IP:', err)
-  }
-})
-
 const startProvisioning = () => {
   step.value = 2
 }
@@ -107,7 +87,8 @@ const startPairing = async () => {
 
   } catch (error) {
     console.error('Failed to start pairing mode:', error)
-    alert('Failed to start pairing mode. Please try again.')
+    const errorMsg = error.message || 'Unknown error'
+    alert(`Failed to start pairing mode: ${errorMsg}\n\nMake sure the backend server is running on port 3001.`)
     step.value = 2
   }
 }

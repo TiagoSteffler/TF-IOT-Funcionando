@@ -1,25 +1,11 @@
 const express = require('express');
 const mqtt = require('mqtt');
 const cors = require('cors');
-const { InfluxDB, Point } = require('@influxdata/influxdb-client');
 require('dotenv').config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-
-// ============================================
-// Configuração InfluxDB
-// ============================================
-const influxDB = new InfluxDB({
-    url: process.env.INFLUX_URL || 'http://localhost:8086',
-    token: process.env.INFLUX_TOKEN || 'your-admin-token'
-});
-
-const org = process.env.INFLUX_ORG || 'esp32-org';
-const bucket = process.env.INFLUX_BUCKET || 'esp32-devices';
-const writeApi = influxDB.getWriteApi(org, bucket);
-const queryApi = influxDB.getQueryApi(org);
 
 // ============================================
 // Configuração MQTT
@@ -63,15 +49,6 @@ mqttClient.on('message', (topic, message) => {
                 status: 'online'
             });
 
-            const point = new Point('device_heartbeat')
-                .tag('mac', mac)
-                .tag('device_id', id)
-                .stringField('ip', ip)
-                .stringField('status', 'online')
-                .timestamp(new Date());
-
-            writeApi.writePoint(point);
-
             if (wasInPairing) {
                 console.log(`[HEARTBEAT] ${id} (${mac}) - ${ip} ✅ PRIMEIRO HEARTBEAT APÓS PAREAMENTO`);
             } else {
@@ -91,13 +68,6 @@ setInterval(() => {
         if (now - device.lastSeen > OFFLINE_THRESHOLD && device.status === 'online') {
             device.status = 'offline';
             console.log(`[OFFLINE] ${device.id} (${mac})`);
-            const point = new Point('device_heartbeat')
-                .tag('mac', mac)
-                .tag('device_id', device.id)
-                .stringField('ip', device.ip)
-                .stringField('status', 'offline')
-                .timestamp(new Date());
-            writeApi.writePoint(point);
         }
     });
 }, 10000);
@@ -124,7 +94,7 @@ app.get('/ping', (req, res) => {
 
     console.log('  → Modo pareamento ATIVADO. Enviando configurações...');
 
-        const response = {
+    const response = {
         mac: mac,
         ssid: pairingConfig.ssid,
         password: pairingConfig.password,
@@ -135,6 +105,7 @@ app.get('/ping', (req, res) => {
 
     console.log('  → Resposta:', JSON.stringify(response));
 
+    // Marca dispositivo como 'pairing' no cache local
     const now = Date.now();
     devices.set(mac, {
         id: response.id,
@@ -143,25 +114,6 @@ app.get('/ping', (req, res) => {
         lastSeen: now,
         status: 'pairing'
     });
-
-    const pairingPoint = new Point('device_paired')
-        .tag('mac', mac)
-        .tag('device_id', response.id)
-        .stringField('ssid', response.ssid)
-        .stringField('broker', response.broker)
-        .stringField('client_ip', clientIP)
-        .timestamp(new Date());
-
-    writeApi.writePoint(pairingPoint);
-
-    const heartbeatPoint = new Point('device_heartbeat')
-        .tag('mac', mac)
-        .tag('device_id', response.id)
-        .stringField('ip', clientIP)
-        .stringField('status', 'pairing')
-        .timestamp(new Date());
-
-    writeApi.writePoint(heartbeatPoint);
 
     res.json(response);
 });
@@ -229,30 +181,10 @@ app.get('/api/devices', async (req, res) => {
 });
 
 app.get('/api/devices/history', async (req, res) => {
-    try {
-        const query = `
-            from(bucket: "${bucket}")
-            |> range(start: -24h)
-            |> filter(fn: (r) => r._measurement == "device_heartbeat")
-            |> last()
-        `;
-        const result = [];
-        await queryApi.queryRows(query, {
-            next(row, tableMeta) {
-                const record = tableMeta.toObject(row);
-                result.push(record);
-            },
-            error(error) {
-                console.error('Erro na query InfluxDB:', error);
-            },
-            complete() {
-                res.json(result);
-            }
-        });
-    } catch (err) {
-        console.error('Erro ao consultar histórico:', err);
-        res.status(500).json({ error: err.message });
-    }
+    // History is now handled by the API server (api.py) through InfluxDB
+    res.status(410).json({ 
+        error: 'This endpoint has been deprecated. Use the API server for historical data queries.' 
+    });
 });
 
 app.post('/api/pairing/start', (req, res) => {
@@ -291,23 +223,19 @@ const PORT = process.env.PORT || 3001;
 
 app.listen(PORT, '0.0.0.0', () => {
     console.log('\n' + '='.repeat(50));
-    console.log('🚀 ESP32 MANAGER - BACKEND (IOT-Funcionando-web)');
+    console.log('🚀 ESP32 MANAGER - BACKEND (Device Provisioning)');
     console.log('='.repeat(50));
     console.log(`Porta: ${PORT}`);
-    console.log(`InfluxDB: ${process.env.INFLUX_URL}`);
-    console.log(`MQTT: ${process.env.MQTT_BROKER}`);
+    console.log(`MQTT: ${process.env.MQTT_BROKER || 'mqtt://localhost:1883'}`);
+    console.log('='.repeat(50));
+    console.log('ℹ️  Responsável por: Pareamento de dispositivos');
+    console.log('ℹ️  Sensor/WiFi config: API Server (port 5000)');
     console.log('='.repeat(50));
     console.log('\n✓ Servidor iniciado\n');
 });
 
 process.on('SIGINT', async () => {
     console.log('\n\n🛑 Encerrando servidor...');
-    try {
-        await writeApi.close();
-        console.log('✓ InfluxDB fechado');
-    } catch (err) {
-        console.error('Erro ao fechar InfluxDB:', err);
-    }
     mqttClient.end();
     console.log('✓ MQTT desconectado');
     process.exit(0);

@@ -14,9 +14,29 @@ const activeView = ref('SettingsPanel')
 const selectedPin = ref(null)
 const showProvisioning = ref(false)
 
-// Board management - start with empty boards array
-const boards = ref([])
-const currentBoardId = ref(null)
+// Board management - load from localStorage
+const STORAGE_KEY = 'esp32_boards'
+
+const loadBoardsFromStorage = () => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    return stored ? JSON.parse(stored) : []
+  } catch (e) {
+    console.error('Error loading boards from storage:', e)
+    return []
+  }
+}
+
+const saveBoardsToStorage = (boardsData) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(boardsData))
+  } catch (e) {
+    console.error('Error saving boards to storage:', e)
+  }
+}
+
+const boards = ref(loadBoardsFromStorage())
+const currentBoardId = ref(boards.value.length > 0 ? boards.value[0].id : null)
 
 const currentBoard = computed(() => boards.value.find(b => b.id === currentBoardId.value))
 const currentDeviceId = computed(() => currentBoard.value?.deviceId || 1)
@@ -77,18 +97,29 @@ const getPinDetails = (pinNumber) => {
   return { number: Number(pinNumber), capabilities, usable }
 }
 
-const handleOpenSetup = (sensorIdOrPin) => {
+// Store selected sensor for editing
+const selectedSensor = ref(null)
+
+const handleOpenSetup = (sensorOrId) => {
+  // If it's a sensor object (from SensorList edit button)
+  if (typeof sensorOrId === 'object' && sensorOrId !== null) {
+    selectedSensor.value = sensorOrId
+    selectedPin.value = null
+  }
   // If it's a sensor ID from the list, extract the pin number
-  if (typeof sensorIdOrPin === 'string' && sensorIdOrPin.startsWith('sensor_pin_')) {
-    const pinNumber = parseInt(sensorIdOrPin.replace('sensor_pin_', ''))
+  else if (typeof sensorOrId === 'string' && sensorOrId.startsWith('sensor_pin_')) {
+    const pinNumber = parseInt(sensorOrId.replace('sensor_pin_', ''))
     selectedPin.value = getPinDetails(pinNumber)
-  } else if (typeof sensorIdOrPin === 'number') {
+    selectedSensor.value = null
+  } else if (typeof sensorOrId === 'number') {
     // Direct pin number
-    selectedPin.value = getPinDetails(sensorIdOrPin)
+    selectedPin.value = getPinDetails(sensorOrId)
+    selectedSensor.value = null
   } else {
     // Try to find in local sensors array (legacy)
-    const s = sensors.value.find(x => x.id === sensorIdOrPin)
+    const s = sensors.value.find(x => x.id === sensorOrId)
     if (s) selectedPin.value = getPinDetails(Number(s.pin))
+    selectedSensor.value = null
   }
   activeView.value = 'SensorSetup'
 }
@@ -115,6 +146,7 @@ const openBoardProvisioning = () => {
 
 const handleProvisionComplete = (newBoard) => {
   boards.value.push(newBoard)
+  saveBoardsToStorage(boards.value)
   currentBoardId.value = newBoard.id
   showProvisioning.value = false
   activeView.value = 'SettingsPanel'
@@ -129,6 +161,22 @@ const handleProvisionCancel = () => {
 
 const handleBoardChange = (boardId) => {
   currentBoardId.value = boardId
+}
+
+const handleEraseAll = () => {
+  // Remove current board from boards array
+  if (currentBoardId.value !== null) {
+    boards.value = boards.value.filter(b => b.id !== currentBoardId.value)
+    saveBoardsToStorage(boards.value)
+    
+    // If there are other boards, switch to the first one
+    if (boards.value.length > 0) {
+      currentBoardId.value = boards.value[0].id
+    } else {
+      // No boards left, reset to initial state
+      currentBoardId.value = null
+    }
+  }
 }
 </script>
 
@@ -154,11 +202,12 @@ const handleBoardChange = (boardId) => {
 
         <component v-else
           :is="activeViewComponent"
-          v-bind="{ selectedPin, sensors, deviceId: currentDeviceId }"
+          v-bind="{ selectedPin, sensors, deviceId: currentDeviceId, selectedSensor }"
           @open-setup="(id) => handleOpenSetup(id)"
           @open-readings="(id) => handleOpenReadings(id)"
-          @save-sensor="(s) => { saveSensor(s); onViewChange('PinPreview') }"
-          @delete-sensor="(id) => { deleteSensor(id); onViewChange('PinPreview') }"
+          @save-sensor="(s) => { saveSensor(s); onViewChange('PinPreview'); selectedSensor = null }"
+          @delete-sensor="(id) => { deleteSensor(id); onViewChange('PinPreview'); selectedSensor = null }"
+          @erase-all="handleEraseAll"
         />
       </div>
     </div>

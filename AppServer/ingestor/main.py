@@ -276,24 +276,52 @@ async def main():
                     # 2. Tópicos de Dados de Sensores (+/sensors/+/data)
                     elif len(parts) >= 4 and parts[1] == 'sensors' and parts[3] == 'data':
                         device_id = data.get('device_id') or parts[0]
-                        sensor_id = data.get('sensor_id') or parts[2]
-                        sensor_type = data.get('type', 'unknown')
-                        value = data.get('value')
+                        sensor_id = data.get('sensor_id') or data.get('id') or parts[2]
+                        sensor_type = data.get('type') or data.get('tipo', 'unknown')
+                        
+                        # Support both 'value' and 'valor' fields
+                        value = data.get('value') or data.get('valor')
+                        
+                        if value is None:
+                            print(f"  ⚠️ Mensagem sem campo 'value' ou 'valor': {data}")
+                            continue
                         
                         # 2a. Verifica regras (não bloqueante)
                         await async_verificar_regras(client, device_id, sensor_id, value)
                         
                         # 2b. Salva no InfluxDB (não bloqueante)
-                        if isinstance(value, dict):
-                            # Múltiplos valores (ex: DHT22)
+                        # Use sensor_id as measurement name (each sensor gets its own "table")
+                        measurement_name = f"sensor_{sensor_id}"
+                        
+                        if isinstance(value, (list, tuple)):
+                            # Array of values (e.g., joystick [x, y, button] or MPU6050 [ax, ay, az, gx, gy, gz, temp])
+                            points = []
+                            for idx, field_value in enumerate(value):
+                                try:
+                                    point = Point(measurement_name) \
+                                        .tag("device_id", device_id) \
+                                        .tag("sensor_type", str(sensor_type)) \
+                                        .tag("field_index", str(idx)) \
+                                        .field(f"value_{idx}", float(field_value)) \
+                                        .time(time.time_ns(), write_precision='ns')
+                                    points.append(point)
+                                except (ValueError, TypeError) as e:
+                                    print(f"  [Influx] Ignorando valor inválido no índice {idx}: {field_value} ({e})")
+                            
+                            if points:
+                                await write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=points)
+                                print(f"  ✅ Salvo no InfluxDB: {measurement_name} (array com {len(points)} valores) ({device_id})")
+                        
+                        elif isinstance(value, dict):
+                            # Múltiplos valores nomeados (ex: DHT22 {"temperature": 25.5, "humidity": 60})
                             points = []
                             for field_name, field_value in value.items():
                                 try:
-                                    point = Point(sensor_id) \
+                                    point = Point(measurement_name) \
                                         .tag("device_id", device_id) \
-                                        .tag("sensor_type", sensor_type) \
+                                        .tag("sensor_type", str(sensor_type)) \
                                         .tag("field", field_name) \
-                                        .field("value", float(field_value)) \
+                                        .field(field_name, float(field_value)) \
                                         .time(time.time_ns(), write_precision='ns')
                                     points.append(point)
                                 except (ValueError, TypeError) as e:
@@ -301,21 +329,21 @@ async def main():
                             
                             if points:
                                 await write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=points)
-                                print(f"  ✅ Salvo no InfluxDB: {sensor_id} (múltiplos valores) ({device_id})")
+                                print(f"  ✅ Salvo no InfluxDB: {measurement_name} (dict com {len(points)} campos) ({device_id})")
                                 
                         else:
-                            # Valor único
+                            # Valor único (scalar)
                             try:
-                                point = Point(sensor_id) \
+                                point = Point(measurement_name) \
                                     .tag("device_id", device_id) \
-                                    .tag("sensor_type", sensor_type) \
+                                    .tag("sensor_type", str(sensor_type)) \
                                     .field("value", float(value)) \
                                     .time(time.time_ns(), write_precision='ns')
                                 
                                 await write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=point)
-                                print(f"  ✅ Salvo no InfluxDB: {sensor_id}={value} ({device_id})")
+                                print(f"  ✅ Salvo no InfluxDB: {measurement_name}={value} ({device_id})")
                             except (ValueError, TypeError) as e:
-                                print(f"  [Influx] Ignorando valor inválido: {sensor_id}={value} ({e})")
+                                print(f"  [Influx] Ignorando valor inválido: {measurement_name}={value} ({e})")
 
                 except json.JSONDecodeError as e:
                     print(f"❌ Erro ao decodificar JSON: {e}")
