@@ -22,10 +22,10 @@ I2C_Manager i2c; // Objeto gerenciador do I2C
 
 
 void setup() {
-    init_serial();
-    loadMQTTSettings(); // Carrega as configurações MQTT salvas da NVS
-    init_wifi();
-    init_mqtt();
+    // ok init_serial();
+    // ok loadMQTTSettings(); // Carrega as configurações MQTT salvas da NVS
+    // ok init_wifi();
+    // ok init_mqtt();
     try
     {
         loadJSONSensorConfig();
