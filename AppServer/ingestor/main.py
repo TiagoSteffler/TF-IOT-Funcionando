@@ -209,6 +209,10 @@ async def async_verificar_regras(client, id_device, id_sensor, value):
                         if state != c.get('last_state', not state):
                             c['last_state'] = state
                             c['time_stamp'] = time.time()
+                        else:
+                            if state==False:
+                                condicao_atendida = False
+                                break
                         
                         if c['tempo'] == 0:
                             # Regra sem tempo, só checa o estado
