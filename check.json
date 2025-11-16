@@ -1,0 +1,39 @@
+{
+  "id_regra": "1",
+  
+  "condicao": [
+    {
+      "tipo": "limite",
+      "tempo": 5,
+      "id_device": "12",
+      "id_sensor": "23",
+      "medida": "temperatura",
+      "operador": ">",
+      "valor_limite": 80
+    },
+    {
+      "tipo": "senha",
+      "senha": "1234",
+      "id_device": "15",
+      "id_sensor": "1"
+    }
+  ],
+  
+  "entao": [
+    {
+      "id_device": "13",
+      "id_atuador": "15",
+      "tempo": 5,
+      "valor": 1
+    }
+  ],
+  
+  "senao": [
+    {
+      "id_device": "13",
+      "id_atuador": "15",
+      "tempo": 0,
+      "valor": 0
+    }
+  ]
+}

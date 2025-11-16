@@ -69,6 +69,7 @@ services:
       - INFLUXDB_TOKEN=meu-token-super-secreto
       - INFLUXDB_ORG=ufsm-iot
       - INFLUXDB_BUCKET=sensores
+      - ENDPOINT_NAME=API_DEFAULT
       - MQTT_BROKER_HOST=mosquitto
       - MQTT_BROKER_PORT=1883
     restart: always
@@ -90,6 +91,21 @@ services:
       - CHOKIDAR_USEPOLLING=true # helps file watching when host is Windows
     depends_on:
       - mosquitto
+    networks:
+      - iot-net
+
+  # 5. Dummy ESP32 Simulator (for testing without hardware)
+  dummy_esp32:
+    build:
+      context: ./dummy-esp32
+    container_name: dummy_esp32_1
+    depends_on:
+      - mosquitto
+    environment:
+      - DEVICE_ID=esp32_device_1
+      - MQTT_BROKER=mosquitto
+      - MQTT_PORT=1883
+    restart: always
     networks:
       - iot-net
 
