@@ -13,6 +13,7 @@ import random
 import os
 from datetime import datetime
 
+
 class DummyESP32:
     def __init__(self, device_id=None, mqtt_broker=None, mqtt_port=None):
         self.device_id = device_id or os.getenv("DEVICE_ID", "esp32_device_1")
@@ -38,7 +39,7 @@ class DummyESP32:
                 }
             ]
         }
-        
+        self.iterador_senha = 0
         self.wifi_config = {
             "ssid": "DummyNetwork",
             "password": "********",
@@ -95,8 +96,9 @@ class DummyESP32:
             }
         
         elif sensor_type == "TECLADO_4X4":
-            teclas_possiveis = ['1', '2', '3', 'A', '4', '5', '6', 'B', '7', '8', '9', 'C', '*', '0', '#', 'D']
-            return random.choice(teclas_possiveis)
+            self.iterador_senha+=1
+            teclas_possiveis = ['*','1', '2', '3', '4']
+            return teclas_possiveis[self.iterador_senha%5]
 
         else:
             return random.randint(0, 4095)

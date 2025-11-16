@@ -182,7 +182,17 @@ async def async_verificar_regras(client, id_device, id_sensor, value):
                                 break
                                 
                     elif c['tipo'] == 'senha':
-                        pass # Implementar lógica de senha se necessário
+                        if value == '*':
+                            c['buffer']=''
+                        else:
+                            c['buffer']=f"{c['buffer']}{value}"
+                        if len(c['buffer']) == len(c['senha']):
+                            if c['buffer'] == c['senha']:
+                                resposta_final_condicao = True
+                            else:
+                                resposta_final_condicao = False
+                        else:
+                            condicao_atendida = False
 
             # Se o sensor não era relevante para nenhuma condição da regra, não faz nada
             if not condicao_atendida:
