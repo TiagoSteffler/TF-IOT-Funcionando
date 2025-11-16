@@ -39,6 +39,9 @@ services:
     build:
       context: ./ingestor # Pasta onde estarão seu Dockerfile e script Python
     container_name: ingestor_service
+    volumes:
+    # Persiste o arquivo de regras no host (dentro da pasta ./ingestor)
+       - ./ingestor:/app
     depends_on:
       - mosquitto
       - influxdb

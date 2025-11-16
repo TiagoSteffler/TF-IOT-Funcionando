@@ -26,6 +26,45 @@ STRING_SENSOR_TYPES = ["TECLADO_4X4"]
 
 # --- Armazenamento de Regras (em memória) ---
 regras = {}
+RULES_CONFIG_FILE = 'rules_config.json' # <-- ADICIONE AQUI
+
+def salvar_regras_no_arquivo():
+    """Salva o dicionário 'regras' atual no arquivo JSON."""
+    global regras
+    try:
+        with open(RULES_CONFIG_FILE, 'w') as f:
+            json.dump(regras, f, indent=4)
+        print(f"✅ Regras salvas com sucesso em {RULES_CONFIG_FILE}")
+    except Exception as e:
+        print(f"❌ Erro ao salvar regras no arquivo: {e}")
+
+def carregar_regras_do_arquivo():
+    """Carrega as regras do arquivo JSON para o dicionário 'regras'."""
+    global regras
+    if os.path.exists(RULES_CONFIG_FILE):
+        try:
+            with open(RULES_CONFIG_FILE, 'r') as f:
+                # Evita erro se o arquivo estiver vazio
+                content = f.read()
+                if not content:
+                    print(f"ℹ️ Arquivo {RULES_CONFIG_FILE} está vazio. Começando com regras vazias.")
+                    regras = {}
+                else:
+                    regras = json.loads(content)
+                    print(f"✅ Regras carregadas com sucesso de {RULES_CONFIG_FILE}. Total: {len(regras)}")
+        except Exception as e:
+            print(f"⚠️ Erro ao carregar {RULES_CONFIG_FILE}: {e}. Começando com regras vazias.")
+            regras = {}
+    else:
+        print(f"ℹ️ Arquivo {RULES_CONFIG_FILE} não encontrado. Criando arquivo vazio...")
+        regras = {}
+        # Cria o arquivo vazio para garantir que ele exista
+        try:
+            with open(RULES_CONFIG_FILE, 'w') as f:
+                json.dump({}, f) # Escreve um JSON vazio
+            print(f"✅ Arquivo {RULES_CONFIG_FILE} criado com sucesso.")
+        except Exception as e:
+            print(f"❌ Erro ao criar {RULES_CONFIG_FILE}: {e}")
 
 # --- Operadores para Regras ---
 operadores = {
@@ -51,6 +90,7 @@ def cria_regra(regra):
                 c['buffer'] = ''
         regras[id] = regra
         print(f"✅ Regra {id} criada com sucesso.")
+        salvar_regras_no_arquivo()
     except Exception as e:
         print(f"❌ Erro ao adicionar regra: {e}")
 
@@ -71,6 +111,7 @@ def atualiza_regra(regra):
                 if c['tipo'] == 'senha':
                     c['buffer'] = ''
             print(f"✅ Regra {id} atualizada com sucesso.")
+            salvar_regras_no_arquivo()
         else:
             print(f"⚠️ Regra {id} não encontrada. Criando como nova...")
             cria_regra(regra)
@@ -87,6 +128,7 @@ def deleta_regra(regra):
         if id in regras:
             del regras[id]
             print(f"✅ Regra {id} deletada com sucesso.")
+            salvar_regras_no_arquivo()
         else:
             print(f"⚠️ Regra {id} não encontrada para deletar.")
     except Exception as e:
@@ -361,6 +403,7 @@ async def main():
         print("✅ Ingestor encerrado.")
 
 if __name__ == "__main__":
+    carregar_regras_do_arquivo()
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
