@@ -25,7 +25,7 @@ class DummyESP32:
                 {
                     "id": "sensor_pin_34",
                     "pin": 34,
-                    "type": "LDR",
+                    "type": "TECLADO_4X4",
                     "enabled": True,
                     "sampling_interval": 5000
                 },
@@ -94,6 +94,10 @@ class DummyESP32:
                 "button": random.choice([0, 1])
             }
         
+        elif sensor_type == "TECLADO_4X4":
+            teclas_possiveis = ['1', '2', '3', 'A', '4', '5', '6', 'B', '7', '8', '9', 'C', '*', '0', '#', 'D']
+            return random.choice(teclas_possiveis)
+
         else:
             return random.randint(0, 4095)
 

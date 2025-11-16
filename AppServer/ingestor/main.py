@@ -21,6 +21,9 @@ MQTT_SENSOR_DATA_TOPIC = "+/sensors/+/data"
 MQTT_RULES_TOPIC = "rules/+"
 MQTT_RULES_CALLBACK_TOPIC = "callback/rules"
 
+# Lista de tipos de sensores que DEVEM ser salvos como String
+STRING_SENSOR_TYPES = ["TECLADO_4X4"]
+
 # --- Armazenamento de Regras (em memória) ---
 regras = {}
 
@@ -41,9 +44,8 @@ def cria_regra(regra):
     try:
         id = regra['id_regra']
         for c in regra['condicao']:
-            c['state'] = False
             if c['tipo'] == 'limite':
-                c['last_state'] = 0
+                c['last_state'] = False
                 c['time_stamp'] = time.time()
             if c['tipo'] == 'senha':
                 c['buffer'] = ''
@@ -63,9 +65,8 @@ def atualiza_regra(regra):
             regras[id].update(regra)
             # Reinicializa o estado das condições
             for c in regras[id]['condicao']:
-                c['state'] = False
                 if c['tipo'] == 'limite':
-                    c['last_state'] = 0
+                    c['last_state'] = False
                     c['time_stamp'] = time.time()
                 if c['tipo'] == 'senha':
                     c['buffer'] = ''
@@ -182,7 +183,7 @@ async def async_verificar_regras(client, id_device, id_sensor, value):
                                 
                     elif c['tipo'] == 'senha':
                         pass # Implementar lógica de senha se necessário
-            
+
             # Se o sensor não era relevante para nenhuma condição da regra, não faz nada
             if not condicao_atendida:
                 continue
@@ -304,19 +305,35 @@ async def main():
                                 print(f"  ✅ Salvo no InfluxDB: {sensor_id} (múltiplos valores) ({device_id})")
                                 
                         else:
-                            # Valor único
-                            try:
-                                point = Point(sensor_id) \
-                                    .tag("device_id", device_id) \
-                                    .tag("sensor_type", sensor_type) \
-                                    .field("value", float(value)) \
-                                    .time(time.time_ns(), write_precision='ns')
-                                
-                                await write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=point)
-                                print(f"  ✅ Salvo no InfluxDB: {sensor_id}={value} ({device_id})")
-                            except (ValueError, TypeError) as e:
-                                print(f"  [Influx] Ignorando valor inválido: {sensor_id}={value} ({e})")
+                        # Valor único
+                            point = Point(sensor_id) \
+                                .tag("device_id", device_id) \
+                                .tag("sensor_type", sensor_type)
 
+                            # --- [LÓGICA CORRIGIDA] ---
+                            # Verifica se o TIPO de sensor está na lista de strings
+                            if sensor_type in STRING_SENSOR_TYPES:
+                                # Se for um teclado, SEMPRE salva como string
+                                point.field("value", str(value))
+                                save_type = "String"
+                            else:
+                                # Para todos os outros sensores, tenta salvar como float
+                                save_type = "Float"
+                                try:
+                                    point.field("value", float(value))
+                                except (ValueError, TypeError):
+                                    # Se falhar (ex: "nan"), salva como string
+                                    point.field("value", str(value))
+                                    save_type = "String (fallback)"
+
+                            point.time(time.time_ns(), write_precision='ns')
+
+                            try:
+                                await write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=point)
+                                print(f"  ✅ Salvo no InfluxDB: {sensor_id}={value} (Tipo: {save_type}) ({device_id})")
+                            except Exception as e:
+                                print(f"  [Influx] Erro ao salvar ponto: {e}")
+                                
                 except json.JSONDecodeError as e:
                     print(f"❌ Erro ao decodificar JSON: {e}")
                 except Exception as e:
