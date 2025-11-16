@@ -213,7 +213,7 @@ def get_sensors_config(device_id):
                 del config_cache[device_id]['sensors']
         
         # Envia requisição MQTT
-        request_topic = f"config/{device_id}/sensors/get"
+        request_topic = f"{device_id}/settings/sensors/get"
         mqtt_client.publish(request_topic, "", qos=1)
         print(f"📤 Solicitação enviada via MQTT: {request_topic}")
         

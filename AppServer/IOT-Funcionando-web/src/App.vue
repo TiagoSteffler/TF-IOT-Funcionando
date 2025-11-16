@@ -14,11 +14,9 @@ const activeView = ref('SettingsPanel')
 const selectedPin = ref(null)
 const showProvisioning = ref(false)
 
-// Board management - starting with device ID 1
-const boards = ref([
-  { id: 'board-1', deviceId: 1, name: 'ESP32 #1', mac: 'AA:BB:CC:11:22:33', ip: '192.168.1.100', mqtt: 'esp32_device_1' }
-])
-const currentBoardId = ref('board-1')
+// Board management - start with empty boards array
+const boards = ref([])
+const currentBoardId = ref(null)
 
 const currentBoard = computed(() => boards.value.find(b => b.id === currentBoardId.value))
 const currentDeviceId = computed(() => currentBoard.value?.deviceId || 1)
@@ -123,7 +121,10 @@ const handleProvisionComplete = (newBoard) => {
 }
 
 const handleProvisionCancel = () => {
-  showProvisioning.value = false
+  // Only allow cancel if there's at least one board already
+  if (boards.value.length > 0) {
+    showProvisioning.value = false
+  }
 }
 
 const handleBoardChange = (boardId) => {
@@ -143,9 +144,9 @@ const handleBoardChange = (boardId) => {
       </div>
 
       <div class="right-area">
-        <!-- Board Provisioning Modal -->
+        <!-- Board Provisioning Modal or Initial Setup -->
         <BoardProvisioning 
-          v-if="showProvisioning"
+          v-if="showProvisioning || boards.length === 0"
           :next-device-id="nextDeviceId"
           @provision-complete="handleProvisionComplete"
           @cancel="handleProvisionCancel"

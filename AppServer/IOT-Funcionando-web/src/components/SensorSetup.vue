@@ -137,10 +137,49 @@ const save = async () => {
   }
 }
 
-const remove = () => {
+const remove = async () => {
   if (!existing.value) return
-  // TODO: Add API call to remove sensor from device
-  emit('delete-sensor', existing.value.id)
+  
+  saving.value = true
+  error.value = null
+  successMessage.value = null
+  
+  try {
+    const mqttDeviceId = `esp32_device_${props.deviceId}`
+    
+    // Send remove request to API
+    const response = await fetch(`http://localhost:5000/${mqttDeviceId}/sensors/remove`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        id: sensorDeviceId.value
+      })
+    })
+    
+    if (!response.ok) {
+      throw new Error(`Failed to remove sensor: ${response.status}`)
+    }
+    
+    const result = await response.json()
+    successMessage.value = 'Sensor removed successfully!'
+    console.log('Sensor removed:', result)
+    
+    // Also emit to parent for local state management
+    emit('delete-sensor', existing.value.id)
+    
+    // Clear success message after 2 seconds
+    setTimeout(() => {
+      successMessage.value = null
+    }, 2000)
+    
+  } catch (err) {
+    error.value = err.message
+    console.error('Error removing sensor:', err)
+  } finally {
+    saving.value = false
+  }
 }
 </script>
 

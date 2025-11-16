@@ -76,6 +76,28 @@ services:
     networks:
       - iot-net
       
+  # Backend service for device provisioning and pairing
+  backend:
+    build:
+      context: ./IOT-Funcionando-web/backend
+    container_name: iot-backend
+    ports:
+      - "3001:3001" # Backend API port
+    depends_on:
+      - mosquitto
+      - influxdb
+    environment:
+      - PORT=3001
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=meu-token-super-secreto
+      - INFLUXDB_ORG=ufsm-iot
+      - INFLUXDB_BUCKET=sensores
+      - MQTT_BROKER=mqtt://mosquitto:1883
+      - MQTT_CLIENT_ID=esp32-manager
+    restart: always
+    networks:
+      - iot-net
+
   web:
     image: node:20-alpine
     container_name: iot-web
@@ -91,6 +113,7 @@ services:
       - CHOKIDAR_USEPOLLING=true # helps file watching when host is Windows
     depends_on:
       - mosquitto
+      - backend
     networks:
       - iot-net
 
