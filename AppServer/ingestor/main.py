@@ -1,12 +1,12 @@
-import paho.mqtt.client as mqtt
-from influxdb_client import InfluxDBClient, Point
-from influxdb_client.client.write_api import SYNCHRONOUS
+import asyncio
+import aiomqtt
+from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
+from influxdb_client import Point
 import os
-import time
 import json
 import operator
-import threading
-import requests
+import time
+import traceback
 
 # --- Configurações (lidas das variáveis de ambiente) ---
 INFLUXDB_URL = os.getenv('INFLUXDB_URL')
@@ -16,59 +16,26 @@ INFLUXDB_BUCKET = os.getenv('INFLUXDB_BUCKET')
 MQTT_BROKER_HOST = os.getenv('MQTT_BROKER_HOST')
 MQTT_BROKER_PORT = int(os.getenv('MQTT_BROKER_PORT'))
 
-# Tópico MQTT para escutar
-# Pattern: {device_id}/sensors/{sensor_id}/data
-MQTT_TOPIC = "+/sensors/+/data"  # + is wildcard for any device_id and sensor_id 
-MQTT_REGRA_TOPIC = "rules/+"
-MQTT_CALLBACK_TOPIC ="callback/regras"
+# --- Tópicos MQTT ---
+MQTT_SENSOR_DATA_TOPIC = "+/sensors/+/data"
+MQTT_RULES_TOPIC = "rules/+"
+MQTT_RULES_CALLBACK_TOPIC = "callback/rules"
 
-# --- Conexão com InfluxDB ---
-print("Conectando ao InfluxDB...")
-try:
-    influx_client = InfluxDBClient(url=INFLUXDB_URL, token=INFLUXDB_TOKEN, org=INFLUXDB_ORG)
-    # Verifica se a conexão está ok (opcional, mas bom para debug)
-    health = influx_client.health()
-    if health.status == "pass":
-        print("Conectado ao InfluxDB com sucesso!")
-    else:
-        print(f"Erro na saúde do InfluxDB: {health.message}")
-    
-    write_api = influx_client.write_api(write_options=SYNCHRONOUS)
-
-except Exception as e:
-    print(f"Erro fatal ao conectar ao InfluxDB: {e}")
-    exit(1) # Sai do script se não puder conectar ao DB
-
-# --- Funções MQTT (Atualizadas para API v2) ---
-def on_connect(client, userdata, flags, reason_code, properties):
-    """ Callback para quando o cliente se conecta ao broker """
-    if reason_code == 0:
-        print(f"Conectado ao Broker MQTT! ({MQTT_BROKER_HOST})")
-        # Após conectar, se inscreve no tópico
-        client.subscribe([(MQTT_TOPIC,0),(MQTT_REGRA_TOPIC,0)])
-    else:
-        # reason_code 0 é sucesso. Outros valores indicam falha.
-        print(f"Falha ao conectar, código de razão: {reason_code}")
-
-def on_subscribe(client, userdata, mid, reason_codes, properties):
-    """ Callback para quando o broker confirma a inscrição """
-    print(f"Subscription ack: mid={mid} reason_codes={reason_codes}")
-    # reason_codes é uma lista de códigos quando múltiplos tópicos foram inscritos.
-    # opcional: checar se algum falhou
-    if reason_codes:
-        for rc in reason_codes:
-            print(f" - reason_code: {rc}")
-
-def on_disconnect(client, userdata, disconnect_flags, reason_code, properties):
-    """ Callback para quando o cliente se desconecta """
-    if reason_code == 0:
-        print("Desconexão do Broker MQTT bem-sucedida.")
-    else:
-        print(f"Desconexão inesperada do Broker MQTT. Código: {reason_code}")
-        print("O Paho-MQTT tentará reconectar automaticamente...")
-
-
+# --- Armazenamento de Regras (em memória) ---
 regras = {}
+
+# --- Operadores para Regras ---
+operadores = {
+    '<': operator.lt,
+    '<=': operator.le,
+    '>': operator.gt,
+    '>=': operator.ge,
+    '==': operator.eq,
+    '!=': operator.ne
+}
+
+# --- Funções de Gerenciamento de Regras (Síncronas) ---
+# (Estas funções manipulam o dict 'regras' e são chamadas pelo loop principal)
 
 def cria_regra(regra):
     try:
@@ -86,25 +53,14 @@ def cria_regra(regra):
         print(f"❌ Erro ao adicionar regra: {e}")
 
 def atualiza_regra(regra):
-    """
-    Atualiza uma regra existente.
-    Se a regra não existe, cria uma nova.
-    """
     try:
         id = regra.get('id_regra')
-        
         if not id:
             print(f"❌ Erro ao atualizar regra: 'id_regra' não fornecido")
             return
         
         if id in regras:
-            # Regra existe - atualiza
-            # Mantém estado anterior das condições se não forem recriadas
-            old_conditions = regras[id].get('condicao', [])
-            
-            # Atualiza a regra com novos dados
             regras[id].update(regra)
-            
             # Reinicializa o estado das condições
             for c in regras[id]['condicao']:
                 c['state'] = False
@@ -113,20 +69,16 @@ def atualiza_regra(regra):
                     c['time_stamp'] = time.time()
                 if c['tipo'] == 'senha':
                     c['buffer'] = ''
-            
             print(f"✅ Regra {id} atualizada com sucesso.")
         else:
-            # Regra não existe - cria como nova
             print(f"⚠️ Regra {id} não encontrada. Criando como nova...")
             cria_regra(regra)
-            
     except Exception as e:
         print(f"❌ Erro ao atualizar regra: {e}")
 
 def deleta_regra(regra):
     try:
         id = regra.get('id_regra')
-        
         if not id:
             print(f"❌ Erro ao deletar regra: 'id_regra' não fornecido")
             return
@@ -136,226 +88,253 @@ def deleta_regra(regra):
             print(f"✅ Regra {id} deletada com sucesso.")
         else:
             print(f"⚠️ Regra {id} não encontrada para deletar.")
-            
     except Exception as e:
         print(f"❌ Erro ao deletar regra: {e}") 
 
-def get_regra():
+async def async_get_regra(client):
     try:
-        mqtt_client.publish("callback/rules", json.dumps(regras))
-        print(f"✅ Regras publicadas com sucesso no callback/rules.")
+        await client.publish(MQTT_RULES_CALLBACK_TOPIC, json.dumps(regras))
+        print(f"✅ Regras publicadas com sucesso no {MQTT_RULES_CALLBACK_TOPIC}.")
     except Exception as e:
-        print(f"❌ Erro ao retornar regras: {e}") 
+        print(f"❌ Erro ao retornar regras: {e}")
 
+# --- Funções de Execução de Regras (Assíncronas) ---
 
-operadores = {
-    '<': operator.lt,  # lt = less than (menor que)
-    '<=': operator.le, # le = less than or equal (menor ou igual)
-    '>': operator.gt,  # gt = greater than (maior que)
-    '>=': operator.ge, # ge = greater than or equal (maior ou igual)
-    '==': operator.eq, # eq = equal (igual)
-    '!=': operator.ne  # ne = not equal (diferente)
-}
-
-def executar(id_device, id_atuador, tempo, valor):
-    """(Função SÍNCRONA, roda em um Thread separado)"""
+async def async_executar_comando(client, id_device, id_atuador, valor):
+    """Publica um único comando para um atuador."""
     try:
-        url = f"http://api_server:5000/{id_device}/settings/sensors/set"
-        payload ={
-            "sensors" : [
-                {
-                    "device_id" : id_device,
-                    "sensor_id" : id_atuador,
-                    "value" : valor
-                }
-            ]
-        }
-        requests.post(url, json=payload)
+        # IMPORTANTE: Novo padrão de tópico para comandos de atuador
+        topic = f"config/{id_device}/actuators/{id_atuador}/set"
+        payload = json.dumps({"value": valor})
+        await client.publish(topic, payload)
+        print(f"✅ Regra (Comando): Publicado em {topic} -> {payload}")
+    except Exception as e:
+        print(f"❌ Erro em 'async_executar_comando': {e}")
 
-        time.sleep(tempo) 
+async def async_executar_temporizado(client, id_device, id_atuador, tempo, valor):
+    """(Função ASSÍNCRONA) Executa um comando e o reverte após 'tempo'."""
+    try:
+        # Tópico para o atuador receber o comando
+        topic = f"config/{id_device}/actuators/{id_atuador}/set"
         
-        payload ={
-            "sensors" : [
-                {
-                    "device_id" : id_device,
-                    "sensor_id" : id_atuador,
-                    "value" : 0 # Reseta para 0
-                }
-            ]
-        }
-        requests.post(url, json=payload)
+        # Publica o valor inicial
+        payload_on = json.dumps({"value": valor})
+        await client.publish(topic, payload_on)
+        print(f"✅ Regra (ON): Publicado em {topic} -> {payload_on}")
+
+        # Aguarda o tempo definido
+        await asyncio.sleep(tempo) 
+        
+        # Publica o valor de reset (0)
+        payload_off = json.dumps({"value": 0})
+        await client.publish(topic, payload_off)
+        print(f"✅ Regra (OFF): Publicado em {topic} -> {payload_off}")
 
     except Exception as e:
-        print(f"❌ Erro na thread 'executar': {e}") 
+        print(f"❌ Erro na task 'async_executar_temporizado': {e}") 
 
-
-def verificar_regras(id_device, id_sensor, value):
-    """(Função SÍNCRONA, roda no thread do on_message)"""
+async def async_verificar_regras(client, id_device, id_sensor, value):
+    """Verifica todas as regras com base em um novo dado de sensor."""
     
-    # Itera sobre uma cópia das chaves, para o caso de o dict 'regras'
-    # ser modificado por outro callback (boa prática)
     for regra_id in list(regras.keys()):
         try:
-            # Pega a regra atual (pode ter sido deletada, por isso o try)
             if regra_id not in regras:
                 continue 
                 
             regra = regras[regra_id]
-            resposta = True
+            # Inicia assumindo que a condição é Falsa até que seja provada Verdadeira
+            resposta_final_condicao = True
             
+            # 1. Avalia as Condições
+            condicao_atendida = False
             for c in regra["condicao"]:
-                if c['id_device']==id_device and c['id_sensor']==id_sensor:
-                    
+                # Verifica se a condição é para este sensor/device
+                if c.get('id_device') == id_device and c.get('id_sensor') == id_sensor:
+                    condicao_atendida = True # Marcamos que este sensor é relevante para esta regra
                     if c['tipo'] == 'limite':
-                        if isinstance(value, dict):
-                            valor = value[c['medida']]
-                        else:
-                            valor = value
-                            
-                        state = operadores[c['operador']](valor,c['valor_limite'])
+                        # Extrai o valor correto se for um dict (ex: DHT22)
+                        try:
+                            valor_sensor = float(value[c['medida']]) if isinstance(value, dict) else float(value)
+                        except (KeyError, ValueError, TypeError):
+                            print(f"  [Regra {regra_id}] Medida '{c.get('medida')}' não encontrada ou valor inválido em {value}")
+                            resposta_final_condicao = False
+                            break # Se uma condição falha, a resposta_final é Falsa
                         
-                        if state != c['last_state']:
+                        # Compara o valor
+                        state = operadores[c['operador']](valor_sensor, c['valor_limite'])
+                        
+                        if state != c.get('last_state', not state):
                             c['last_state'] = state
                             c['time_stamp'] = time.time()
                         
                         if c['tempo'] == 0:
-                            resposta = resposta and state
+                            # Regra sem tempo, só checa o estado
+                            if not state:
+                                resposta_final_condicao = False
+                                break
                         else:
-                            # BUG 1 CORRIGIDO: Lógica de tempo
-                            # (tempo_atual - tempo_inicio) >= duracao_necessaria
+                            # Regra com tempo
                             duracao_estado_atual = time.time() - c['time_stamp']
-                            
-                            if state and duracao_estado_atual >= c['tempo']:
-                                # A condição é Verdadeira E o tempo foi atingido
-                                resposta = resposta and True
-                            elif not state:
-                                # Se o estado for Falso, a resposta é Falsa imediatamente
-                                resposta = resposta and False
-                            else:
-                                # Estado é Verdadeiro, mas tempo ainda não foi atingido
-                                resposta = False
+                            if not (state and duracao_estado_atual >= c['tempo']):
+                                # Se estado for Falso, ou se for Verdadeiro mas tempo não atingido
+                                resposta_final_condicao = False
+                                break
                                 
                     elif c['tipo'] == 'senha':
-                        pass # ... sua lógica de senha ...
-                
+                        pass # Implementar lógica de senha se necessário
             
-            if resposta:
-                for e in regra["entao"]:
-                    if e["tempo"]!=0:
-                        # DISPARA EM BACKGROUND USANDO THREAD!
-                        threading.Thread(target=executar, args=(e["id_device"],e["id_sensor"],e["tempo"],e["valor"])).start()
+            # Se o sensor não era relevante para nenhuma condição da regra, não faz nada
+            if not condicao_atendida:
+                continue
+
+            # 2. Executa Ações (ENTAO / SENAO)
+            if resposta_final_condicao:
+                # Executa o bloco "ENTAO"
+                for e in regra.get("entao", []):
+                    if e["tempo"] != 0:
+                        # Dispara em background como uma nova Task
+                        asyncio.create_task(async_executar_temporizado(
+                            client, e["id_device"], e["id_atuador"], e["tempo"], e["valor"]
+                        ))
                     else:
-                        url = f"http://api_server:5000/{id_device}/settings/sensors/set"
-                        payload = { "sensors" : [{"device_id" : e["id_device"], "sensor_id" : e["id_sensor"], "value" : e["valor"] }]}
-                        # BUG 2 CORRIGIDO:
-                        requests.post(url, json=payload)
+                        # Executa comando simples
+                        await async_executar_comando(
+                            client, e["id_device"], e["id_atuador"], e["valor"]
+                        )
             else:
-                for e in regra["senao"]:
-                    if e["tempo"]!=0:
-                        # DISPARA EM BACKGROUND USANDO THREAD!
-                        threading.Thread(target=executar, args=(e["id_device"],e["id_sensor"],e["tempo"],e["valor"])).start()
+                # Executa o bloco "SENAO"
+                for e in regra.get("senao", []):
+                    if e["tempo"] != 0:
+                        asyncio.create_task(async_executar_temporizado(
+                            client, e["id_device"], e["id_atuador"], e["tempo"], e["valor"]
+                        ))
                     else:
-                        url = f"http://api_server:5000/{id_device}/settings/sensors/set"
-                        payload = { "sensors" : [{"device_id" : e["id_device"], "sensor_id" : e["id_sensor"], "value" : e["valor"] }]}
-                        # BUG 2 CORRIGIDO:
-                        requests.post(url, json=payload)
+                        await async_executar_comando(
+                            client, e["id_device"], e["id_atuador"], e["valor"]
+                        )
                         
         except Exception as e:
-            print(f"❌ Erro ao verificar regra {regra_id}: {e}") 
+            print(f"❌ Erro ao verificar regra {regra_id}: {e}")
+            traceback.print_exc()
 
-def on_message(client, userdata, msg):
-    """ Callback para quando uma mensagem é recebida """
+# --- Função Principal (Main) ---
+
+async def main():
+    print("Iniciando Ingestor Assíncrono...")
+    
+    # Conecta ao InfluxDB (Async)
+    # Conecta ao InfluxDB (Async)
     try:
-        payload = msg.payload.decode('utf-8')
-        print(f"📨 Mensagem recebida: Tópico[{msg.topic}] Payload[{payload[:100]}...]")
-
-        data = json.loads(payload)
-        parts = msg.topic.split('/')
-
-        # Tratar mensagens de regras
-        if len(parts) >= 2 and parts[0] == 'rules':
-            if parts[1] == 'add':
-                cria_regra(data)
-            elif parts[1] == 'update':
-                atualiza_regra(data)
-            elif parts[1] == 'delete':
-                deleta_regra(data)
-            elif parts[1] == 'get':
-                get_regra()
-            return
-
-        # Tratar mensagens de sensores (dados)
-        if len(parts) >= 4 and parts[1] == 'sensors' and parts[3] == 'data':
-            device_id = data.get('device_id') or parts[0]
-            sensor_id = data.get('sensor_id') or parts[2]
-            sensor_type = data.get('type', 'unknown')
-            value = data.get('value')
+        influx_client = InfluxDBClientAsync(url=INFLUXDB_URL, token=INFLUXDB_TOKEN, org=INFLUXDB_ORG)
+        write_api = influx_client.write_api()
+        
+        # Tenta pingar o banco de dados para verificar a conexão
+        if await influx_client.ping(): # <--- LINHA CORRIGIDA
+            print("✅ Conectado ao InfluxDB com sucesso!")
+        else:
+            raise Exception("Erro ao pingar o InfluxDB. Verifique a URL ou token.")
             
-            # Verifica regras
-            verificar_regras(device_id, sensor_id, value)
-            
-            # Salva no InfluxDB
-            if isinstance(value, dict):
-                # Multi-value sensors (ex: DHT22 com temperatura e umidade)
-                for field_name, field_value in value.items():
-                    point = Point(sensor_id) \
-                        .tag("device_id", device_id) \
-                        .tag("sensor_type", sensor_type) \
-                        .tag("field", field_name) \
-                        .field("value", float(field_value)) \
-                        .time(time.time_ns(), write_precision='ns')
-                    
-                    write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=point)
-                    print(f"✅ Salvo no InfluxDB: {sensor_id}.{field_name}={field_value} ({device_id})")
-            else:
-                # Single-value sensors
-                point = Point(sensor_id) \
-                    .tag("device_id", device_id) \
-                    .tag("sensor_type", sensor_type) \
-                    .field("value", float(value)) \
-                    .time(time.time_ns(), write_precision='ns')
-                
-                write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=point)
-                print(f"✅ Salvo no InfluxDB: {sensor_id}={value} ({device_id})")
-
-    except json.JSONDecodeError as e:
-        print(f"❌ Erro ao decodificar JSON: {e}")
     except Exception as e:
-        print(f"❌ Erro ao processar mensagem: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"❌ Erro fatal ao conectar ao InfluxDB: {e}")
+        return
 
-# --- Conexão com MQTT ---
+    # Conecta ao MQTT (Async)
+    try:
+        print(f"Conectando ao Broker MQTT em {MQTT_BROKER_HOST}...")
+        async with aiomqtt.Client(hostname=MQTT_BROKER_HOST, port=MQTT_BROKER_PORT) as client:
+            print("✅ Conectado ao Broker MQTT!")
+            
+            # Inscreve-se nos tópicos
+            await client.subscribe(MQTT_SENSOR_DATA_TOPIC)
+            await client.subscribe(MQTT_RULES_TOPIC)
+            print(f"  Inscrito em: {MQTT_SENSOR_DATA_TOPIC}")
+            print(f"  Inscrito em: {MQTT_RULES_TOPIC}")
 
-# 1. MUDANÇA: Alterado de VERSION1 para VERSION2
-mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+            # Loop principal de mensagens
+            async for message in client.messages:
+                try:
+                    payload_str = message.payload.decode('utf-8')
+                    topic = message.topic.value
+                    print(f"📨 Mensagem recebida: Tópico[{topic}] Payload[{payload_str[:100]}...]")
+                    
+                    data = json.loads(payload_str)
+                    parts = topic.split('/')
 
-# 2. MUDANÇA: Registrando os novos callbacks
-mqtt_client.on_connect = on_connect
-mqtt_client.on_message = on_message
-mqtt_client.on_subscribe = on_subscribe
-mqtt_client.on_disconnect = on_disconnect
+                    # --- Roteador de Tópicos ---
 
-print("Conectando ao Broker MQTT...")
-try:
-    mqtt_client.connect(MQTT_BROKER_HOST, MQTT_BROKER_PORT, 60)
-except Exception as e:
-    print(f"Não foi possível conectar ao Broker MQTT: {e}")
-    exit(1)
+                    # 1. Tópicos de Regras (rules/+)
+                    if parts[0] == 'rules':
+                        if parts[1] == 'add':
+                            cria_regra(data)
+                        elif parts[1] == 'update':
+                            atualiza_regra(data)
+                        elif parts[1] == 'delete':
+                            deleta_regra(data)
+                        elif parts[1] == 'get':
+                            await async_get_regra(client)
+                    
+                    # 2. Tópicos de Dados de Sensores (+/sensors/+/data)
+                    elif len(parts) >= 4 and parts[1] == 'sensors' and parts[3] == 'data':
+                        device_id = data.get('device_id') or parts[0]
+                        sensor_id = data.get('sensor_id') or parts[2]
+                        sensor_type = data.get('type', 'unknown')
+                        value = data.get('value')
+                        
+                        # 2a. Verifica regras (não bloqueante)
+                        await async_verificar_regras(client, device_id, sensor_id, value)
+                        
+                        # 2b. Salva no InfluxDB (não bloqueante)
+                        if isinstance(value, dict):
+                            # Múltiplos valores (ex: DHT22)
+                            points = []
+                            for field_name, field_value in value.items():
+                                try:
+                                    point = Point(sensor_id) \
+                                        .tag("device_id", device_id) \
+                                        .tag("sensor_type", sensor_type) \
+                                        .tag("field", field_name) \
+                                        .field("value", float(field_value)) \
+                                        .time(time.time_ns(), write_precision='ns')
+                                    points.append(point)
+                                except (ValueError, TypeError) as e:
+                                    print(f"  [Influx] Ignorando valor inválido: {field_name}={field_value} ({e})")
+                            
+                            if points:
+                                await write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=points)
+                                print(f"  ✅ Salvo no InfluxDB: {sensor_id} (múltiplos valores) ({device_id})")
+                                
+                        else:
+                            # Valor único
+                            try:
+                                point = Point(sensor_id) \
+                                    .tag("device_id", device_id) \
+                                    .tag("sensor_type", sensor_type) \
+                                    .field("value", float(value)) \
+                                    .time(time.time_ns(), write_precision='ns')
+                                
+                                await write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=point)
+                                print(f"  ✅ Salvo no InfluxDB: {sensor_id}={value} ({device_id})")
+                            except (ValueError, TypeError) as e:
+                                print(f"  [Influx] Ignorando valor inválido: {sensor_id}={value} ({e})")
 
-# Loop em thread separada (NÃO bloqueante)
-# loop_start() roda o MQTT em background thread
-mqtt_client.loop_start()
-print("✅ MQTT loop iniciado em thread separada")
+                except json.JSONDecodeError as e:
+                    print(f"❌ Erro ao decodificar JSON: {e}")
+                except Exception as e:
+                    print(f"❌ Erro ao processar mensagem: {e}")
+                    traceback.print_exc()
 
-# Main thread fica livre para outras operações
-try:
-    # Mantém o script ativo
-    while True:
-        time.sleep(1)
-except KeyboardInterrupt:
-    print("\n🛑 Script interrompido pelo usuário. Desconectando...")
-    mqtt_client.loop_stop()  # Para o loop de background
-    mqtt_client.disconnect()
-    influx_client.close()
-    print("✅ Desconectado.")
+    except aiomqtt.MqttError as e:
+        print(f"❌ Erro de conexão MQTT: {e}. O ingestor será encerrado.")
+    except (asyncio.CancelledError, KeyboardInterrupt):
+        print("\n🛑 Ingestor interrompido. Desconectando...")
+    finally:
+        if 'influx_client' in locals() and influx_client:
+            await influx_client.close()
+            print("✅ Conexão com InfluxDB fechada.")
+        print("✅ Ingestor encerrado.")
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("🛑 Processo principal interrompido.")
