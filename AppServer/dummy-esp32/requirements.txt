@@ -1,1 +1,2 @@
-paho-mqtt==1.6.1
+aiomqtt
+paho-mqtt>=2.0.0
