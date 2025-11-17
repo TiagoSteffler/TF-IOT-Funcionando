@@ -49,7 +49,7 @@ const sensorsByPin = computed(() => {
 })
 
 const openSetup = (sensor) => emit('open-setup', sensor)
-const openReadings = (sensor) => emit('open-readings', sensor.id)
+const openReadings = (sensor) => emit('open-readings', sensor)
 const deleteSensor = async (sensor) => {
   if (!confirm(`Delete sensor "${sensor.desc || sensor.tipo}" (ID: ${sensor.id})? This cannot be undone.`)) {
     return
@@ -112,6 +112,110 @@ const getPinTypeName = (tipo) => {
   return PIN_TYPE_NAMES[tipo] || `Type ${tipo}`
 }
 
+// Actuator state management
+const actuatorStates = ref({})
+const servoUpdateTimers = ref({})
+const keypadLastValues = ref({})
+
+// Check if sensor is an actuator
+const isActuator = (tipo) => {
+  return tipo === 4 || tipo === 5  // SG-90 Servo (4) or Relay (5)
+}
+
+// Fetch last sensor reading from InfluxDB
+const fetchLastReading = async (sensorId) => {
+  try {
+    const mqttDeviceId = `esp32_device_${props.deviceId}`
+    const response = await fetch(`/${mqttDeviceId}/sensors/${sensorId}/read?start=-1h`)
+    
+    if (!response.ok) {
+      console.warn(`Failed to fetch last reading for sensor ${sensorId}`)
+      return null
+    }
+    
+    const data = await response.json()
+    if (data && data.length > 0) {
+      // Get the most recent value
+      return data[data.length - 1].value
+    }
+    return null
+  } catch (err) {
+    console.error('Error fetching last reading:', err)
+    return null
+  }
+}
+
+// Publish actuator command via MQTT
+const setActuatorValue = async (sensor, value) => {
+  try {
+    const mqttDeviceId = `esp32_device_${props.deviceId}`
+    
+    // Build sensor config with updated atributo1
+    const sensorConfig = {
+      id: sensor.id,
+      desc: sensor.desc,
+      tipo: sensor.tipo,
+      atributo1: value,
+      pinos: sensor.pinos
+    }
+    
+    const payload = {
+      sensors: [sensorConfig]
+    }
+    
+    console.log('📤 Sending actuator update to ESP32')
+    console.log('Endpoint:', `/${mqttDeviceId}/settings/sensors/set`)
+    console.log('Payload:', payload)
+    
+    // Use the same endpoint as sensor configuration (goes through Vite proxy)
+    const response = await fetch(`/${mqttDeviceId}/settings/sensors/set`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ API Error:', response.status, errorText)
+      // Don't throw - ESP32 might have received it even if API returns error
+      // Update state optimistically since ESP32 will echo back via MQTT
+    }
+    
+    // Update local state optimistically
+    actuatorStates.value[sensor.id] = value
+    console.log('✅ Actuator command sent, state updated to:', value)
+    
+  } catch (err) {
+    console.error('Error setting actuator:', err)
+    // Still update state - ESP32 might process it
+    actuatorStates.value[sensor.id] = value
+  }
+}
+
+// Toggle relay (0/1)
+const toggleRelay = (sensor) => {
+  const currentState = actuatorStates.value[sensor.id] || 0
+  const newState = currentState === 0 ? 1 : 0
+  setActuatorValue(sensor, newState)
+}
+
+// Set servo angle (0-180)
+const setServoAngle = (sensor, angle) => {
+  // Update local state immediately for responsive UI
+  actuatorStates.value[sensor.id] = parseInt(angle)
+  
+  // Clear existing timer for this servo
+  if (servoUpdateTimers.value[sensor.id]) {
+    clearTimeout(servoUpdateTimers.value[sensor.id])
+  }
+  
+  // Debounce: only send to ESP32 after 1 second of no changes
+  servoUpdateTimers.value[sensor.id] = setTimeout(() => {
+    console.log(`🔄 Sending debounced servo update: ${angle}°`)
+    setActuatorValue(sensor, parseInt(angle))
+  }, 1000)
+}
+
 // Auto-fetch on mount using device ID from props
 onMounted(() => {
   fetchDeviceSettings(props.deviceId)
@@ -120,6 +224,26 @@ onMounted(() => {
 // Re-fetch when device changes
 watch(() => props.deviceId, (newId) => {
   if (newId) fetchDeviceSettings(newId)
+})
+
+// Initialize actuator states from fetched sensor data
+watch(parsedSensors, (sensors) => {
+  sensors.forEach(sensor => {
+    if (isActuator(sensor.tipo) && sensor.atributo1 !== undefined) {
+      actuatorStates.value[sensor.id] = sensor.atributo1
+      console.log(`🎛️ Initialized actuator ${sensor.id} state:`, sensor.atributo1)
+    }
+    
+    // Fetch last keypad value for type 7 (TECLADO_4X4)
+    if (sensor.tipo === 7) {
+      fetchLastReading(sensor.id).then(value => {
+        if (value !== null) {
+          keypadLastValues.value[sensor.id] = value
+          console.log(`🎹 Loaded last keypad value for sensor ${sensor.id}:`, value)
+        }
+      })
+    }
+  })
 })
 </script>
 
@@ -166,6 +290,67 @@ watch(() => props.deviceId, (newId) => {
                     <span style="color:#91d5ff; font-weight:600">GPIO {{ pin.pino }}</span>
                     <span style="color:#8c8c8c; margin-left:6px">({{ getPinTypeName(pin.tipo) }})</span>
                   </div>
+                </div>
+              </div>
+              
+              <!-- Actuator Controls -->
+              <div v-if="isActuator(s.tipo)" style="margin-top:16px; padding:12px; background:rgba(82,196,26,0.1); border-radius:8px; border:1px solid rgba(82,196,26,0.3)">
+                <!-- Relay Toggle (Type 5) -->
+                <div v-if="s.tipo === 5" style="display:flex; align-items:center; gap:12px">
+                  <span style="color:#95de64; font-weight:600; font-size:14px">⚡ Relay Control:</span>
+                  <button 
+                    @click="toggleRelay(s)"
+                    :style="{
+                      padding: '8px 20px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: (actuatorStates[s.id] || 0) === 1 ? '#52c41a' : '#8c8c8c',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontWeight: 'bold',
+                      fontSize: '13px',
+                      transition: '0.2s',
+                      boxShadow: (actuatorStates[s.id] || 0) === 1 ? '0 0 12px rgba(82,196,26,0.5)' : 'none'
+                    }"
+                  >
+                    {{ (actuatorStates[s.id] || 0) === 1 ? '🟢 ON' : '⚫ OFF' }}
+                  </button>
+                </div>
+                
+                <!-- Servo Slider (Type 4) -->
+                <div v-if="s.tipo === 4" style="display:flex; flex-direction:column; gap:8px">
+                  <div style="display:flex; align-items:center; gap:12px">
+                    <span style="color:#95de64; font-weight:600; font-size:14px">🔄 Servo Angle:</span>
+                    <span style="color:#fff; font-size:16px; font-weight:bold; min-width:50px">{{ actuatorStates[s.id] || 90 }}°</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:12px">
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="180" 
+                      :value="actuatorStates[s.id] || 90"
+                      @input="setServoAngle(s, $event.target.value)"
+                      style="flex:1; height:8px; border-radius:4px; background:#d9d9d9; outline:none; cursor:pointer"
+                    />
+                    <input 
+                      type="number" 
+                      min="0" 
+                      max="180" 
+                      :value="actuatorStates[s.id] || 90"
+                      @change="setServoAngle(s, $event.target.value)"
+                      style="width:70px; padding:6px; border-radius:6px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Keypad Last Value Display (Type 7) -->
+              <div v-if="s.tipo === 7" style="margin-top:16px; padding:12px; background:rgba(250,173,20,0.1); border-radius:8px; border:1px solid rgba(250,173,20,0.3)">
+                <div style="display:flex; align-items:center; gap:12px">
+                  <span style="color:#ffc53d; font-weight:600; font-size:14px">🔐 Last Input:</span>
+                  <span style="color:#fff; font-size:14px; font-family:monospace; background:rgba(0,0,0,0.3); padding:6px 12px; border-radius:6px; border:1px solid rgba(250,173,20,0.4)">
+                    {{ keypadLastValues[s.id] || '---' }}
+                  </span>
                 </div>
               </div>
             </div>

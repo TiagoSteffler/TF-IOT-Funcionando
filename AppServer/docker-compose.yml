@@ -88,13 +88,8 @@ services:
       - "3001:3001" # Backend API port
     depends_on:
       - mosquitto
-      - influxdb
     environment:
       - PORT=3001
-      - INFLUXDB_URL=http://influxdb:8086
-      - INFLUXDB_TOKEN=meu-token-super-secreto
-      - INFLUXDB_ORG=ufsm-iot
-      - INFLUXDB_BUCKET=sensores
       - MQTT_BROKER=mqtt://mosquitto:1883
       - MQTT_CLIENT_ID=esp32-manager
     restart: always

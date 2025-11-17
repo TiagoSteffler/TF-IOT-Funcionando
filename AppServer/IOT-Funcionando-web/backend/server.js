@@ -180,6 +180,38 @@ app.get('/api/devices', async (req, res) => {
     }
 });
 
+app.get('/api/devices/:mac/status', async (req, res) => {
+    try {
+        const { mac } = req.params;
+        const device = devices.get(mac);
+        
+        if (!device) {
+            return res.status(404).json({ 
+                status: 'unknown',
+                online: false,
+                message: 'Device not found' 
+            });
+        }
+        
+        const now = Date.now();
+        const OFFLINE_THRESHOLD = 70000; // 70 seconds
+        const timeSinceLastSeen = now - device.lastSeen;
+        const isOnline = timeSinceLastSeen < OFFLINE_THRESHOLD;
+        
+        res.json({
+            status: device.status,
+            online: isOnline,
+            lastSeen: device.lastSeen,
+            timeSinceLastSeen,
+            id: device.id,
+            ip: device.ip
+        });
+    } catch (err) {
+        console.error('Erro ao verificar status do dispositivo:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.get('/api/devices/history', async (req, res) => {
     // History is now handled by the API server (api.py) through InfluxDB
     res.status(410).json({ 
@@ -217,6 +249,45 @@ app.post('/api/pairing/stop', (req, res) => {
 
 app.get('/api/pairing/status', (req, res) => {
     res.json({ active: pairingMode, config: pairingMode ? pairingConfig : null });
+});
+
+// ============================================
+// MQTT Publish Endpoint (for actuator control)
+// ============================================
+app.post('/api/mqtt/publish', (req, res) => {
+    try {
+        const { topic, payload, qos = 1 } = req.body;
+        
+        if (!topic || !payload) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Missing topic or payload' 
+            });
+        }
+        
+        console.log(`📤 Publishing MQTT: ${topic}`);
+        console.log(`   Payload: ${payload}`);
+        
+        mqttClient.publish(topic, payload, { qos }, (err) => {
+            if (err) {
+                console.error('❌ MQTT publish error:', err);
+                return res.status(500).json({ 
+                    success: false, 
+                    error: err.message 
+                });
+            }
+            
+            console.log('✅ MQTT message published successfully');
+            res.json({ success: true, message: 'Published to MQTT' });
+        });
+        
+    } catch (err) {
+        console.error('❌ Error in /api/mqtt/publish:', err);
+        res.status(500).json({ 
+            success: false, 
+            error: err.message 
+        });
+    }
 });
 
 const PORT = process.env.PORT || 3001;

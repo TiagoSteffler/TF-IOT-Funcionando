@@ -21,8 +21,22 @@ MQTT_SENSOR_DATA_TOPIC = "+/sensors/+/data"
 MQTT_RULES_TOPIC = "rules/+"
 MQTT_RULES_CALLBACK_TOPIC = "callback/rules"
 
-# Lista de tipos de sensores que DEVEM ser salvos como String
-STRING_SENSOR_TYPES = ["TECLADO_4X4"]
+# Sensor type enum mapping (from ESP32 Trabalho.hpp)
+SENSOR_TYPES = {
+    0: "MPU_6050",
+    1: "DS18_B20",
+    2: "HC_SR04",
+    3: "APDS_9960",
+    4: "SG_90",
+    5: "RELE",
+    6: "JOYSTICK",
+    7: "TECLADO_4X4",
+    8: "ENCODER",
+    9: "DHT_11"
+}
+
+# Lista de tipos de sensores que DEVEM ser salvos como String (usando o ID numérico)
+STRING_SENSOR_TYPES = [7]  # TECLADO_4X4
 
 # --- Armazenamento de Regras (em memória) ---
 regras = {}
@@ -136,10 +150,18 @@ def deleta_regra(regra):
 
 async def async_get_regra(client):
     try:
-        await client.publish(MQTT_RULES_CALLBACK_TOPIC, json.dumps(regras))
+        # Convert regras dict to array format expected by API
+        rules_array = list(regras.values())
+        response_payload = {"rules": rules_array}
+        
+        print(f"📤 GET RULES: Enviando {len(rules_array)} regras para {MQTT_RULES_CALLBACK_TOPIC}")
+        print(f"   Regras: {json.dumps(response_payload, indent=2)}")
+        
+        await client.publish(MQTT_RULES_CALLBACK_TOPIC, json.dumps(response_payload))
         print(f"✅ Regras publicadas com sucesso no {MQTT_RULES_CALLBACK_TOPIC}.")
     except Exception as e:
         print(f"❌ Erro ao retornar regras: {e}")
+        traceback.print_exc()
 
 # --- Funções de Execução de Regras (Assíncronas) ---
 
@@ -321,27 +343,41 @@ async def main():
 
                     # 1. Tópicos de Regras (rules/+)
                     if parts[0] == 'rules':
+                        print(f"🔀 ROTEADOR DE REGRAS: Ação = {parts[1]}")
                         if parts[1] == 'add':
+                            print(f"  ➕ ADD RULE: {data.get('id_regra', 'SEM_ID')}")
                             cria_regra(data)
                         elif parts[1] == 'update':
+                            print(f"  ✏️ UPDATE RULE: {data.get('id_regra', 'SEM_ID')}")
                             atualiza_regra(data)
                         elif parts[1] == 'delete':
+                            print(f"  🗑️ DELETE RULE: {data.get('id_regra', 'SEM_ID')}")
                             deleta_regra(data)
                         elif parts[1] == 'get':
+                            print(f"  📋 GET RULES: Retornando todas as regras")
                             await async_get_regra(client)
                     
                     # 2. Tópicos de Dados de Sensores (+/sensors/+/data)
                     elif len(parts) >= 4 and parts[1] == 'sensors' and parts[3] == 'data':
                         device_id = data.get('device_id') or parts[0]
                         sensor_id = data.get('sensor_id') or data.get('id') or parts[2]
-                        sensor_type = data.get('type') or data.get('tipo', 'unknown')
+                        sensor_type_id = data.get('type') if data.get('type') is not None else data.get('tipo', -1)
+                        sensor_type_name = SENSOR_TYPES.get(sensor_type_id, 'unknown')
                         
-                        # Support both 'value' and 'valor' fields
-                        value = data.get('value') or data.get('valor')
-                        
-                        if value is None:
-                            print(f"  ⚠️ Mensagem sem campo 'value' ou 'valor': {data}")
-                            continue
+                        # Actuators (RELE, SG_90) send atributo1 instead of values array
+                        # Types 4 (SG_90) and 5 (RELE) use atributo1 field
+                        if sensor_type_id in [4, 5]:  # SG_90 or RELE
+                            value = data.get('atributo1')
+                            if value is None:
+                                print(f"  ⚠️ Actuator message missing 'atributo1': {data}")
+                                continue
+                            print(f"  🎛️ Actuator {sensor_type_name}: atributo1={value}")
+                        else:
+                            # Sensors use 'values' field (check for None explicitly to allow 0)
+                            value = data.get('values')
+                            if value is None:
+                                print(f"  ⚠️ Mensagem sem campo 'values': {data}")
+                                continue
                         
                         # 2a. Verifica regras (não bloqueante)
                         await async_verificar_regras(client, device_id, sensor_id, value)
@@ -350,6 +386,13 @@ async def main():
                         # Use sensor_id as measurement name (each sensor gets its own "table")
                         measurement_name = f"sensor_{sensor_id}"
                         
+                        # --- [KEYBOARD SPECIAL HANDLING FIRST] ---
+                        # Keyboards send arrays like ["1366479BBCCAD"], but we want to store as single string value
+                        if sensor_type_id in STRING_SENSOR_TYPES and isinstance(value, (list, tuple)) and len(value) > 0:
+                            # Extract first element from keyboard array
+                            value = value[0]
+                            print(f"  🎹 Teclado: array convertido para string '{value}'")
+                        
                         if isinstance(value, (list, tuple)):
                             # Array of values (e.g., joystick [x, y, button] or MPU6050 [ax, ay, az, gx, gy, gz, temp])
                             points = []
@@ -357,17 +400,24 @@ async def main():
                                 try:
                                     point = Point(measurement_name) \
                                         .tag("device_id", device_id) \
-                                        .tag("sensor_type", str(sensor_type)) \
-                                        .tag("field_index", str(idx)) \
-                                        .field(f"value_{idx}", float(field_value)) \
-                                        .time(time.time_ns(), write_precision='ns')
+                                        .tag("sensor_type", sensor_type_name) \
+                                        .tag("sensor_type_id", str(sensor_type_id)) \
+                                        .tag("field_index", str(idx))
+                                    
+                                    # Check if sensor type should be saved as string
+                                    if sensor_type_id in STRING_SENSOR_TYPES:
+                                        point.field(f"value_{idx}", str(field_value))
+                                    else:
+                                        point.field(f"value_{idx}", float(field_value))
+                                    
+                                    point.time(time.time_ns(), write_precision='ns')
                                     points.append(point)
                                 except (ValueError, TypeError) as e:
                                     print(f"  [Influx] Ignorando valor inválido no índice {idx}: {field_value} ({e})")
                             
                             if points:
                                 await write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=points)
-                                print(f"  ✅ Salvo no InfluxDB: {measurement_name} (array com {len(points)} valores) ({device_id})")
+                                print(f"  ✅ Salvo no InfluxDB: {measurement_name} ({sensor_type_name}) array com {len(points)} valores ({device_id})")
                         
                         elif isinstance(value, dict):
                             # Múltiplos valores nomeados (ex: DHT22 {"temperature": 25.5, "humidity": 60})
@@ -376,7 +426,8 @@ async def main():
                                 try:
                                     point = Point(measurement_name) \
                                         .tag("device_id", device_id) \
-                                        .tag("sensor_type", str(sensor_type)) \
+                                        .tag("sensor_type", sensor_type_name) \
+                                        .tag("sensor_type_id", str(sensor_type_id)) \
                                         .tag("field", field_name) \
                                         .field(field_name, float(field_value)) \
                                         .time(time.time_ns(), write_precision='ns')
@@ -386,17 +437,18 @@ async def main():
                             
                             if points:
                                 await write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=points)
-                                print(f"  ✅ Salvo no InfluxDB: {measurement_name} (dict com {len(points)} campos) ({device_id})")
+                                print(f"  ✅ Salvo no InfluxDB: {measurement_name} ({sensor_type_name}) dict com {len(points)} campos ({device_id})")
                                 
                         else:
                         # Valor único
-                            point = Point(sensor_id) \
+                            point = Point(measurement_name) \
                                 .tag("device_id", device_id) \
-                                .tag("sensor_type", sensor_type)
+                                .tag("sensor_type", sensor_type_name) \
+                                .tag("sensor_type_id", str(sensor_type_id))
 
                             # --- [LÓGICA CORRIGIDA] ---
                             # Verifica se o TIPO de sensor está na lista de strings
-                            if sensor_type in STRING_SENSOR_TYPES:
+                            if sensor_type_id in STRING_SENSOR_TYPES:
                                 # Se for um teclado, SEMPRE salva como string
                                 point.field("value", str(value))
                                 save_type = "String"
@@ -414,7 +466,7 @@ async def main():
 
                             try:
                                 await write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=point)
-                                print(f"  ✅ Salvo no InfluxDB: {sensor_id}={value} (Tipo: {save_type}) ({device_id})")
+                                print(f"  ✅ Salvo no InfluxDB: {measurement_name} ({sensor_type_name}) = {value} (Tipo: {save_type}) ({device_id})")
                             except Exception as e:
                                 print(f"  [Influx] Erro ao salvar ponto: {e}")
                                 

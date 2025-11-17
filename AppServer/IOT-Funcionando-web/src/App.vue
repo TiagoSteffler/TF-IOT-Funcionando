@@ -7,6 +7,7 @@ import PinPreview from './components/PinPreview.vue'
 import SensorSetup from './components/SensorSetup.vue'
 import SensorReadings from './components/SensorReadings.vue'
 import SensorList from './components/SensorList.vue'
+import Rules from './components/Rules.vue'
 import FooterBar from './components/FooterBar.vue'
 import BoardProvisioning from './components/BoardProvisioning.vue'
 
@@ -69,7 +70,8 @@ const viewMap = {
   PinPreview,
   SensorReadings,
   SensorSetup,
-  SensorList
+  SensorList,
+  Rules
 }
 
 const activeViewComponent = computed(() => viewMap[activeView.value] || SettingsPanel)
@@ -124,19 +126,23 @@ const handleOpenSetup = (sensorOrId) => {
   activeView.value = 'SensorSetup'
 }
 
-const handleOpenReadings = (sensorIdOrPin) => {
-  // If it's a sensor ID from the list, extract the pin number
-  if (typeof sensorIdOrPin === 'string' && sensorIdOrPin.startsWith('sensor_pin_')) {
-    const pinNumber = parseInt(sensorIdOrPin.replace('sensor_pin_', ''))
-    selectedPin.value = getPinDetails(pinNumber)
-  } else if (typeof sensorIdOrPin === 'number') {
-    // Direct pin number
-    selectedPin.value = getPinDetails(sensorIdOrPin)
+const handleOpenReadings = (sensor) => {
+  console.log('📊 handleOpenReadings called with:', sensor)
+  // Store the selected sensor object for the SensorReadings component
+  if (typeof sensor === 'object' && sensor !== null) {
+    selectedSensor.value = sensor
+    console.log('✅ Set selectedSensor to object:', selectedSensor.value)
   } else {
-    // Try to find in local sensors array (legacy)
-    const s = sensors.value.find(x => x.id === sensorIdOrPin)
-    if (s) selectedPin.value = getPinDetails(Number(s.pin))
+    // Legacy handling: if just an ID is passed, try to find the sensor
+    const s = sensors.value.find(x => x.id === sensor)
+    if (s) {
+      selectedSensor.value = s
+      console.log('✅ Found and set selectedSensor:', selectedSensor.value)
+    } else {
+      console.warn('⚠️ Could not find sensor with id:', sensor)
+    }
   }
+  console.log('🎯 Switching to SensorReadings view')
   activeView.value = 'SensorReadings'
 }
 

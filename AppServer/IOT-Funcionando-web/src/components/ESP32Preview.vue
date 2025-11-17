@@ -3,9 +3,9 @@ import { ref } from 'vue'
 
 const emit = defineEmits(['pin-selected'])
 
-// ORDEM REAL EXTRAÍDA DO SEU pins.txt
+// ESP32-S3 pins based on pins.txt (ordered top to bottom as they appear physically)
 const pinList = [
-  14, 13, 12, 10, 9, 46, 3, 8, 18, 17, 16, 15, 7, 6, 5, 4,
+  14, 13, 12, 11, 10, 9, 46, 3, 8, 18, 17, 16, 15, 7, 6, 5, 4,
   19, 20, 21, 47, 48, 45, 0, 35, 36, 37, 38, 39, 40, 41, 42,
   2, 1, "RX", "TX"
 ]

@@ -476,6 +476,29 @@ def remove_sensor(device_id):
                     
                     if response == "OK" or (isinstance(response, dict) and response.get('status') == 'OK'):
                         print(f"✅ ESP32 confirmou REMOVE após {elapsed:.2f}s")
+                        
+                        # Delete InfluxDB measurement for this sensor
+                        try:
+                            measurement_name = f"sensor_{sensor_id}"
+                            delete_api = influx_client.delete_api()
+                            
+                            # Delete all data for this measurement
+                            start = "1970-01-01T00:00:00Z"
+                            stop = "2099-12-31T23:59:59Z"
+                            
+                            delete_api.delete(
+                                start=start,
+                                stop=stop,
+                                predicate=f'_measurement="{measurement_name}"',
+                                bucket=INFLUXDB_BUCKET,
+                                org=INFLUXDB_ORG
+                            )
+                            
+                            print(f"🗑️ InfluxDB measurement '{measurement_name}' deleted")
+                        except Exception as influx_err:
+                            print(f"⚠️ Failed to delete InfluxDB measurement: {influx_err}")
+                            # Don't fail the request if InfluxDB delete fails
+                        
                         return jsonify({
                             "status": "success",
                             "message": f"Sensor '{sensor_id}' removed successfully",
@@ -588,11 +611,31 @@ def reset_device(device_id):
                     del config_cache[device_id]
                     print(f"🗑️ Cache do dispositivo {device_id} removido", flush=True)
             
+            # Delete all InfluxDB measurements for this device
+            try:
+                delete_api = influx_client.delete_api()
+                start = "1970-01-01T00:00:00Z"
+                stop = "2099-12-31T23:59:59Z"
+                
+                # Delete all measurements tagged with this device_id
+                delete_api.delete(
+                    start=start,
+                    stop=stop,
+                    predicate=f'device_id="{device_id}"',
+                    bucket=INFLUXDB_BUCKET,
+                    org=INFLUXDB_ORG
+                )
+                
+                print(f"🗑️ All InfluxDB data for device '{device_id}' deleted", flush=True)
+            except Exception as influx_err:
+                print(f"⚠️ Failed to delete InfluxDB data for device: {influx_err}", flush=True)
+                # Don't fail the request if InfluxDB delete fails
+            
             return jsonify({
                 "status": "reset_sent",
                 "device": device_id,
                 "topic": topic,
-                "message": "Reset command sent to device. All configuration cleared."
+                "message": "Reset command sent to device. All configuration and data cleared."
             })
         else:
             print(f"❌ Erro ao publicar reset no MQTT (Código: {result})", flush=True)

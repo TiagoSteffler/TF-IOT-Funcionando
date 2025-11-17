@@ -5,7 +5,7 @@ import { Chart, registerables } from 'chart.js'
 Chart.register(...registerables)
 
 const props = defineProps({
-  selectedPin: { type: Object, default: null },
+  selectedSensor: { type: Object, default: null }, // Changed from selectedPin to selectedSensor
   sensors: { type: Array, default: () => [] },
   deviceId: { type: Number, default: 1 }
 })
@@ -19,14 +19,17 @@ const autoRefresh = ref(false)
 let chartInstance = null
 let refreshInterval = null
 
-// Fetch sensor readings from ingestor API (JSON response)
+// Fetch sensor readings from API server (JSON response)
 const fetchReadings = async (deviceId, sensorId) => {
+  console.log('🔍 fetchReadings called:', { deviceId, sensorId })
   loading.value = true
   error.value = null
   
   try {
     const mqttDeviceId = `esp32_device_${deviceId}`
-    const response = await fetch(`http://localhost:5000/${mqttDeviceId}/sensors/${sensorId}/read?start=${timeRange.value}`)
+    const url = `/${mqttDeviceId}/sensors/${sensorId}/read?start=${timeRange.value}`
+    console.log('📡 Fetching from:', url)
+    const response = await fetch(url)
     if (!response.ok) {
       throw new Error(`Failed to fetch readings: ${response.status} ${response.statusText}`)
     }
@@ -44,9 +47,8 @@ const fetchReadings = async (deviceId, sensorId) => {
 }
 
 const refreshData = () => {
-  if (props.selectedPin && props.deviceId) {
-    const sensorId = `sensor_pin_${props.selectedPin.number}`
-    fetchReadings(props.deviceId, sensorId)
+  if (props.selectedSensor && props.deviceId) {
+    fetchReadings(props.deviceId, props.selectedSensor.id)
   }
 }
 
@@ -158,19 +160,21 @@ const renderChart = (data) => {
   console.log('Chart instance created successfully')
 }
 
-// Auto-fetch on mount if selectedPin is available
+// Auto-fetch on mount if selectedSensor is available
 onMounted(() => {
-  if (props.selectedPin) {
-    const sensorId = `sensor_pin_${props.selectedPin.number}`
-    fetchReadings(props.deviceId, sensorId)
+  console.log('📍 SensorReadings mounted with props:', { selectedSensor: props.selectedSensor, deviceId: props.deviceId })
+  if (props.selectedSensor) {
+    fetchReadings(props.deviceId, props.selectedSensor.id)
+  } else {
+    console.warn('⚠️ selectedSensor is null/undefined on mount')
   }
 })
 
-// Re-fetch if selectedPin or deviceId changes
-watch(() => [props.selectedPin, props.deviceId], ([newPin, newDeviceId]) => {
-  if (newPin && newDeviceId) {
-    const sensorId = `sensor_pin_${newPin.number}`
-    fetchReadings(newDeviceId, sensorId)
+// Re-fetch if selectedSensor or deviceId changes
+watch(() => [props.selectedSensor, props.deviceId], ([newSensor, newDeviceId]) => {
+  console.log('🔄 Props changed:', { newSensor, newDeviceId })
+  if (newSensor && newDeviceId) {
+    fetchReadings(newDeviceId, newSensor.id)
   }
 })
 
@@ -210,7 +214,12 @@ onUnmounted(() => {
 <template>
   <section>
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
-      <h2 style="margin:0">Sensor Readings</h2>
+      <h2 style="margin:0">
+        Sensor Readings
+        <span v-if="selectedSensor" style="font-size:0.9em; color:#718096; font-weight:normal">
+          - {{ selectedSensor.desc || `Sensor ${selectedSensor.id}` }} (ID: {{ selectedSensor.id }})
+        </span>
+      </h2>
       
       <div style="display:flex; gap:8px; align-items:center">
         <select v-model="timeRange" style="padding:6px 12px; border-radius:4px; border:1px solid #cbd5e0">

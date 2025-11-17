@@ -19,8 +19,8 @@ const SENSOR_TYPES = [
   { value: 5, name: 'RELE', category: 'actuator', desc: 'Módulo Relé' },
   { value: 6, name: 'JOYSTICK', category: 'sensor', desc: 'Joystick Analógico' },
   { value: 7, name: 'TECLADO_4X4', category: 'sensor', desc: 'Teclado Matricial 4x4' },
-  { value: 8, name: 'IR', category: 'sensor', desc: 'Receptor IR' },
-  { value: 9, name: 'ENCODER', category: 'sensor', desc: 'Encoder Rotativo' }
+  { value: 8, name: 'ENCODER', category: 'sensor', desc: 'Encoder Rotativo' },
+  { value: 9, name: 'DHT11', category: 'sensor', desc: 'Sensor de Temperatura/Umidade' }
 ]
 
 // Pin types matching ESP32 enum estado_pino_t
@@ -38,8 +38,8 @@ const PIN_TYPES = [
 const SENSOR_PIN_CONFIG = {
   0: { // MPU6050
     pins: [
-      { label: 'SDA (I2C Data)', type: 5, defaultPin: 21 },
-      { label: 'SCL (I2C Clock)', type: 4, defaultPin: 22 }
+      { label: 'SDA (I2C Data)', type: 5, defaultPin: 17 },
+      { label: 'SCL (I2C Clock)', type: 4, defaultPin: 18 }
     ]
   },
   1: { // DS18B20
@@ -55,8 +55,8 @@ const SENSOR_PIN_CONFIG = {
   },
   3: { // APDS_9960
     pins: [
-      { label: 'SDA (I2C Data)', type: 5, defaultPin: 21 },
-      { label: 'SCL (I2C Clock)', type: 4, defaultPin: 22 }
+      { label: 'SDA (I2C Data)', type: 5, defaultPin: 17 },
+      { label: 'SCL (I2C Clock)', type: 4, defaultPin: 18 }
     ]
   },
   4: { // SG_90 (Servo)
@@ -71,39 +71,40 @@ const SENSOR_PIN_CONFIG = {
   },
   6: { // JOYSTICK
     pins: [
-      { label: 'Eixo X (Analog)', type: 3, defaultPin: 34 },
-      { label: 'Eixo Y (Analog)', type: 3, defaultPin: 35 },
-      { label: 'Botão (Digital)', type: 1, defaultPin: 32 }
+      { label: 'Eixo X (Analog)', type: 3, defaultPin: 1 },
+      { label: 'Eixo Y (Analog)', type: 3, defaultPin: 2 },
+      { label: 'Botão (Digital)', type: 1, defaultPin: 3 }
     ]
   },
   7: { // TECLADO_4X4
     pins: [
-      { label: 'Linha 1', type: 2, defaultPin: 13 },
-      { label: 'Linha 2', type: 2, defaultPin: 12 },
-      { label: 'Linha 3', type: 2, defaultPin: 14 },
-      { label: 'Linha 4', type: 2, defaultPin: 27 },
-      { label: 'Coluna 1', type: 1, defaultPin: 26 },
-      { label: 'Coluna 2', type: 1, defaultPin: 25 },
-      { label: 'Coluna 3', type: 1, defaultPin: 33 },
-      { label: 'Coluna 4', type: 1, defaultPin: 32 }
+      { label: 'Linha 1', type: 2, defaultPin: 8 },
+      { label: 'Linha 2', type: 2, defaultPin: 9 },
+      { label: 'Linha 3', type: 2, defaultPin: 10 },
+      { label: 'Linha 4', type: 2, defaultPin: 11 },
+      { label: 'Coluna 1', type: 1, defaultPin: 12 },
+      { label: 'Coluna 2', type: 1, defaultPin: 13 },
+      { label: 'Coluna 3', type: 1, defaultPin: 14 },
+      { label: 'Coluna 4', type: 1, defaultPin: 21 }
     ]
   },
-  8: { // IR
-    pins: [
-      { label: 'Data', type: 1, defaultPin: 15 }
-    ]
-  },
-  9: { // ENCODER
+  8: { // ENCODER
     pins: [
       { label: 'CLK', type: 1, defaultPin: 19 },
       { label: 'DT', type: 1, defaultPin: 18 }
     ]
+  },
+  9: { // DHT11
+    pins: [
+      { label: 'Data', type: 1, defaultPin: 15 }
+    ]
   }
 }
 
-// Available ESP32 pins (excluding reserved/strapping pins)
+// Available ESP32-S3 pins (including all usable and some debug pins)
 const AVAILABLE_PINS = [
-  0, 2, 4, 5, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33, 34, 35, 36, 39
+  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+  35, 36, 37, 38, 39, 40, 41, 42, 45, 46, 47, 48
 ]
 
 // Form state
@@ -243,6 +244,15 @@ const save = async () => {
         pino: p.pino,
         tipo: p.tipo
       }))
+    }
+    
+    // Add atributo1 for actuators (relay and servo)
+    if (sensorType.value === 4) {
+      // Servo: default to 90 degrees (middle position)
+      sensorConfig.atributo1 = 90
+    } else if (sensorType.value === 5) {
+      // Relay: default to OFF (0)
+      sensorConfig.atributo1 = 0
     }
     
     const payload = { sensors: [sensorConfig] }
