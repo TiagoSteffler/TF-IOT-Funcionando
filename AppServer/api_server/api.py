@@ -174,6 +174,36 @@ def health_rules():
     """Verifica se a API está no ar."""
     return jsonify({"status": "API Server is running"})
 
+@app.route('/influxdb/clear', methods=['POST'])
+def clear_influxdb():
+    """
+    Deletes ALL data from the InfluxDB bucket.
+    This is a destructive operation - use with caution!
+    """
+    try:
+        # Get delete API
+        delete_api = influx_client.delete_api()
+        
+        # Delete all data from the beginning of time to now
+        start = "1970-01-01T00:00:00Z"
+        stop = "2100-01-01T00:00:00Z"
+        
+        # Delete all data in the bucket (no predicate means delete everything)
+        delete_api.delete(start, stop, '', bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG)
+        
+        print(f"🗑️ All data cleared from InfluxDB bucket: {INFLUXDB_BUCKET}")
+        
+        return jsonify({
+            "status": "success",
+            "message": f"All data cleared from bucket '{INFLUXDB_BUCKET}'",
+            "bucket": INFLUXDB_BUCKET
+        })
+    except Exception as e:
+        print(f"❌ Error clearing InfluxDB: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/<device_id>/sensors/<sensor_id>/read')
 def get_data(device_id, sensor_id):
     """
@@ -217,16 +247,29 @@ def get_data(device_id, sensor_id):
     try:
         result = query_api.query(org=INFLUXDB_ORG, query=q_influx)
         
-        # Converter o resultado em um JSON simples
-        data_points = []
+        # Agrupa campos pelo timestamp para sensores multi-campo (joystick, gyro, etc.)
+        time_grouped = {}  # { "timestamp": { "field1": value1, "field2": value2, ... } }
+        
         for table in result:
             for record in table.records:
-                point = {
-                    "time": record.get_time().isoformat(), # Converte data/hora para string ISO
-                    "value": record.get_value(),
-                    "measurement": record.get_measurement(),
-                }
-                data_points.append(point)
+                timestamp = record.get_time().isoformat()
+                field_name = record.get_field()  # Nome do campo (x, y, button, temperature, etc.)
+                field_value = record.get_value()
+                measurement = record.get_measurement()
+                
+                # Inicializa estrutura para este timestamp se não existir
+                if timestamp not in time_grouped:
+                    time_grouped[timestamp] = {
+                        "time": timestamp,
+                        "measurement": measurement,
+                        "value": {}
+                    }
+                
+                # Adiciona o campo ao dicionário de valores
+                time_grouped[timestamp]["value"][field_name] = field_value
+        
+        # Converte de volta para lista, ordenada por timestamp
+        data_points = sorted(time_grouped.values(), key=lambda x: x["time"])
         
         # Retornar o JSON
         return jsonify(data_points)
