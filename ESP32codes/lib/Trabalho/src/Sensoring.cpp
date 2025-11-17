@@ -352,8 +352,31 @@ int addOrUpdateSensor(const char* jsonPayload) {
         Serial.print("Atualizando sensor existente com ID ");
         Serial.println(novoSensor.id);
         
-        // Para atuadores (Relay e Servo), apenas atualiza os atributos sem recriar o objeto
-        if (sensores[sensorIndex].tipo == RELE || sensores[sensorIndex].tipo == SG_90) {
+        // Verifica se o tipo do sensor mudou
+        bool tipoMudou = (sensores[sensorIndex].tipo != novoSensor.tipo);
+        
+        if (tipoMudou) {
+            // Se o tipo mudou, sempre recria o objeto completamente
+            Serial.println("Tipo de sensor alterado - recriando objeto");
+            
+            if (sensores[sensorIndex].objeto != nullptr) {
+                delete sensores[sensorIndex].objeto;
+            }
+            
+            // Atualiza os dados do sensor
+            sensores[sensorIndex] = novoSensor;
+            
+            // Cria o novo objeto do sensor
+            if (createSensorObject(sensores[sensorIndex])) {
+                Serial.println("Sensor recriado com sucesso com novo tipo");
+                resultado = 2; // Atualizado
+            } else {
+                Serial.println("Erro ao criar objeto do sensor com novo tipo");
+                return -1;
+            }
+        }
+        // Para atuadores (Relay e Servo) do mesmo tipo, apenas atualiza os atributos sem recriar o objeto
+        else if (sensores[sensorIndex].tipo == RELE || sensores[sensorIndex].tipo == SG_90) {
             // Atualiza apenas os atributos
             sensores[sensorIndex].atributo1 = novoSensor.atributo1;
             sensores[sensorIndex].atributo2 = novoSensor.atributo2;
@@ -378,8 +401,20 @@ int addOrUpdateSensor(const char* jsonPayload) {
             
             Serial.println("Atuador atualizado sem recriar objeto");
             resultado = 2; // Atualizado
+        }
+        // Para HC-SR04, atualiza atributos e executa calibração se solicitado
+        else if (sensores[sensorIndex].tipo == HC_SR04) {
+            // Atualiza os atributos
+            sensores[sensorIndex].atributo1 = novoSensor.atributo1;
+            sensores[sensorIndex].atributo2 = novoSensor.atributo2;
+            sensores[sensorIndex].atributo3 = novoSensor.atributo3;
+            sensores[sensorIndex].atributo4 = novoSensor.atributo4;
+            sensores[sensorIndex].desc = novoSensor.desc;
+            
+            Serial.println("HC-SR04 atualizado sem recriar objeto");
+            resultado = 2; // Atualizado
         } else {
-            // Para sensores, recria o objeto normalmente
+            // Para sensores do mesmo tipo, recria o objeto normalmente
             if (sensores[sensorIndex].objeto != nullptr) {
                 delete sensores[sensorIndex].objeto;
             }
@@ -539,7 +574,7 @@ int removeSensorById(const char* jsonPayload) {
 
 /// @brief Constrói o payload JSON para publicação MQTT de um sensor
 /// @param sensor Ponteiro para o sensor
-/// @return String JSON com formato {"id":X, "tipo":Y, "valor":[...]}
+/// @return String JSON com formato {"device_id":X, "sensor_id":Y, "type":Z, "values":{...}}
 String buildSensorPayload(Sensor *sensor) {
     if (sensor == nullptr || sensor->objeto == nullptr) {
         Serial.println("Erro: sensor ou objeto nulo");
@@ -550,42 +585,41 @@ String buildSensorPayload(Sensor *sensor) {
     doc["device_id"] = mqttConfig.id;
     doc["sensor_id"] = sensor->id;
     doc["type"] = static_cast<int>(sensor->tipo);
-    JsonArray valores;
-    if (sensor->tipo != RELE && sensor->tipo != SG_90) valores = doc.createNestedArray("values");
+    JsonObject values = doc.createNestedObject("values");
     
     switch (sensor->tipo) {
         case MPU_6050: {
             MPU6050* mpu = static_cast<MPU6050*>(sensor->objeto);
             MPU_read read = mpu->getValues();
-            valores.add(read.x);
-            valores.add(read.y);
-            valores.add(read.z);
-            valores.add(read.gx);
-            valores.add(read.gy);
-            valores.add(read.gz);
-            valores.add(read.temp);
+            values["accel_x"] = read.x;
+            values["accel_y"] = read.y;
+            values["accel_z"] = read.z;
+            values["gyro_x"] = read.gx;
+            values["gyro_y"] = read.gy;
+            values["gyro_z"] = read.gz;
+            values["temp"] = read.temp;
             break;
         }
         
         case DS18_B20: {
             DS18B20* ds = static_cast<DS18B20*>(sensor->objeto);
             float temp = ds->readTemperature();
-            valores.add(temp);
+            values["temperature"] = temp;
             break;
         }
         
         case DHT_11: {
             DHT11_Sensor* dht = static_cast<DHT11_Sensor*>(sensor->objeto);
             DHT_read read = dht->getValues();
-            valores.add(read.temperature);
-            valores.add(read.humidity);
+            values["temperature"] = read.temperature;
+            values["humidity"] = read.humidity;
             break;
         }
         
         case HC_SR04: {
             HCSR04* hc = static_cast<HCSR04*>(sensor->objeto);
             double dist = hc->getDistance();
-            valores.add(dist);
+            values["distance"] = dist;
             break;
         }
         
@@ -594,35 +628,35 @@ String buildSensorPayload(Sensor *sensor) {
             APDS_Color color = apds->getColor();
             uint8_t prox = apds->getProx();
             uint8_t gesture = apds->getGesture();
-            valores.add(color.r);
-            valores.add(color.g);
-            valores.add(color.b);
-            valores.add(color.c);
-            valores.add(prox);
-            valores.add(gesture);
+            values["red"] = color.r;
+            values["green"] = color.g;
+            values["blue"] = color.b;
+            values["clear"] = color.c;
+            values["proximity"] = prox;
+            values["gesture"] = gesture;
             break;
         }
         
         case SG_90: {
             SG90* servo = static_cast<SG90*>(sensor->objeto);
             int angle = servo->getAngle();
-            doc["atributo1"] = angle;
+            values["angle"] = angle;
             break;
         }
         
         case RELE: {
             Relay* relay = static_cast<Relay*>(sensor->objeto);
             int state = static_cast<int>(relay->getState());
-            doc["atributo1"] = state;
+            values["state"] = state;
             break;
         }
         
         case JOYSTICK: {
             Joystick* joy = static_cast<Joystick*>(sensor->objeto);
             JoyRead read = joy->getRawValues();
-            valores.add(read.x);
-            valores.add(read.y);
-            valores.add(read.bot);
+            values["x"] = read.x;
+            values["y"] = read.y;
+            values["button"] = read.bot;
             break;
         }
         
@@ -631,9 +665,9 @@ String buildSensorPayload(Sensor *sensor) {
             char key = keypad->getKey();
             if (key != '\0') {
                 char keyStr[2] = {key, '\0'};
-                valores.add(keyStr);
+                values["key"] = keyStr;
             } else {
-                valores.add((const char*)nullptr);
+                values["key"] = (const char*)nullptr;
             }
             break;
         }
@@ -641,7 +675,7 @@ String buildSensorPayload(Sensor *sensor) {
         case ENCODER: {
             Encoder* encoder = static_cast<Encoder*>(sensor->objeto);
             Encoder_read read = encoder->getValues();
-            valores.add(read.obstacle_detected ? 1 : 0);
+            values["obstacle_detected"] = read.obstacle_detected ? 1 : 0;
             break;
         }
         

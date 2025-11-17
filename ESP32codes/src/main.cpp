@@ -117,6 +117,56 @@ void sensorsVoid( void * pvParameters ){
   String keyboardBuffer = "";
 
   for(;;){
+    // Verifica se algum HC-SR04 precisa de calibração
+    for (size_t i = 0; i < sensores.size(); i++) {
+      if (sensores[i].tipo == HC_SR04 && sensores[i].objeto != nullptr) {
+        HCSR04* hcsr04 = static_cast<HCSR04*>(sensores[i].objeto);
+        
+        // atributo1 = 1 indica que deve calibrar
+        if (sensores[i].atributo1 == 1) {
+          float distanciaEsperada = sensores[i].atributo2;
+          
+          Serial.print("[HC-SR04] Calibrando sensor ID ");
+          Serial.print(sensores[i].id);
+          Serial.print(" para distancia esperada: ");
+          Serial.println(distanciaEsperada);
+          
+          // Executa a calibração
+          hcsr04->calibrate(distanciaEsperada);
+          
+          // Reseta os atributos após calibração
+          sensores[i].atributo1 = 0;
+          sensores[i].atributo2 = 0;
+          
+          // Salva as alterações no arquivo
+          if (saveDevicesToFile()) {
+            Serial.println("[HC-SR04] Calibracao concluida e salva");
+          } else {
+            Serial.println("[HC-SR04] Erro ao salvar calibracao");
+          }
+        }
+        // atributo1 = 2 indica que deve resetar a calibração
+        else if (sensores[i].atributo1 == 2) {
+          Serial.print("[HC-SR04] Resetando calibracao do sensor ID ");
+          Serial.println(sensores[i].id);
+          
+          // Reseta a calibração
+          hcsr04->resetcalibration();
+          
+          // Reseta os atributos
+          sensores[i].atributo1 = 0;
+          sensores[i].atributo2 = 0;
+          
+          // Salva as alterações no arquivo
+          if (saveDevicesToFile()) {
+            Serial.println("[HC-SR04] Calibracao resetada e salva");
+          } else {
+            Serial.println("[HC-SR04] Erro ao salvar reset de calibracao");
+          }
+        }
+      }
+    }
+    
     // Busca dinâmica do teclado a cada iteração
     KeyPad* teclado = nullptr;
     int tecladoId = -1;
