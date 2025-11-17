@@ -1,2 +1,2 @@
-aiomqtt
-influxdb-client[async]
+paho-mqtt
+influxdb-client

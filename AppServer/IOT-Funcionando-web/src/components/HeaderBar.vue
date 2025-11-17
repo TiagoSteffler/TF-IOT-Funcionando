@@ -8,8 +8,9 @@ const addBoard = () => emit('add-board')
 
 const views = [
   { id: 'SettingsPanel', label: '⚙ CONFIGURAÇÃO' },
+  { id: 'SensorPanel', label: '☄ PAINEL' },
   { id: 'SensorList', label: '🗒 SENSORES' },
-  { id: 'Rules', label: '⚲ REGRAS' },
+  { id: 'PinPreview', label: '⚲ PINOS' },
   { id: 'SensorReadings', label: '🕮 LEITURAS' },
   { id: 'SensorSetup', label: '🛠 SETUP' }
 ]
