@@ -9,4 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copia o script principal
 COPY main.py .
 
-CMD ["python", "main.py"]
+# Disable Python output buffering for real-time logs
+ENV PYTHONUNBUFFERED=1
+
+CMD ["python", "-u", "main.py"]

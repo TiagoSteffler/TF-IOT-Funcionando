@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 
 const emit = defineEmits(['provision-complete', 'cancel'])
 
@@ -7,7 +7,7 @@ const props = defineProps({
   nextDeviceId: { type: Number, required: true }
 })
 
-const step = ref(1) // 1=instructions, 2=settings, 3=connecting, 4=success
+const step = ref(1) // 1=instructions, 2=settings, 3=pairing-waiting, 4=success
 
 // MQTT settings
 const mqttBroker = ref('')
@@ -22,11 +22,20 @@ const boardName = ref(`ESP32 #${props.nextDeviceId}`)
 const espMac = ref('')
 const espIp = ref('')
 
+// Pairing state
+const pairingActive = ref(false)
+
 const startProvisioning = () => {
   step.value = 2
 }
 
-const sendConfiguration = async () => {
+const startPairing = async () => {
+  // Validate required fields
+  if (!wifiNetwork.value || !wifiPassword.value || !mqttBroker.value) {
+    alert('Please fill in all required fields (WiFi SSID, Password, and MQTT Broker IP)')
+    return
+  }
+
   step.value = 3
   
   const payload = {
@@ -41,37 +50,126 @@ const sendConfiguration = async () => {
   }
 
   try {
-    // TODO: Replace with actual ESP32 AP endpoint when available
-    // Example: POST to http://192.168.4.1/configure
-    console.log('Sending configuration to ESP32 AP:', payload)
+    // Start pairing mode on the backend
+    // Backend will now respond to ESP32 GET /ping requests with config
+    const apiPayload = {
+      ssid: wifiNetwork.value,
+      password: wifiPassword.value,
+      brokerIP: mqttBroker.value,
+      port: 1883,
+      id: mqttDeviceId.value
+    }
+
+    const resp = await fetch('/api/pairing/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(apiPayload)
+    })
+
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      throw new Error(`Pairing start failed: ${resp.status} ${text}`)
+    }
+
+    const json = await resp.json()
+    console.log('🔵 Pairing mode activated on backend:', json)
+    pairingActive.value = true
+
+    // Now waiting for ESP32 to:
+    // 1. Connect to open network or hotspot
+    // 2. Send GET /ping?mac=XX:XX:XX:XX:XX:XX
+    // 3. Receive config and restart
+    // 4. Connect to configured WiFi
+    // 5. Send MQTT heartbeat
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    
-    // TODO: Detect when ESP32 restarts and disconnects
-    // For now, simulate success
-    step.value = 4
-    
-    // Emit the new board info to parent
-    setTimeout(() => {
-      emit('provision-complete', {
-        id: `board-${props.nextDeviceId}`,
-        deviceId: props.nextDeviceId,
-        name: boardName.value,
-        mac: espMac.value || 'Unknown',
-        ip: espIp.value || 'Pending',
-        mqtt: mqttDeviceId.value
-      })
-    }, 1000)
-    
+    // Poll for devices to detect when ESP32 connects
+    pollForNewDevice()
+
   } catch (error) {
-    console.error('Provisioning failed:', error)
-    alert('Failed to send configuration to ESP32. Please try again.')
+    console.error('Failed to start pairing mode:', error)
+    const errorMsg = error.message || 'Unknown error'
+    alert(`Failed to start pairing mode: ${errorMsg}\n\nMake sure the backend server is running on port 3001.`)
     step.value = 2
   }
 }
 
-const cancel = () => {
+const pollForNewDevice = async () => {
+  // Poll backend for new devices (check every 3 seconds for up to 2 minutes)
+  let attempts = 0
+  const maxAttempts = 40 // 2 minutes
+
+  const checkInterval = setInterval(async () => {
+    attempts++
+    
+    try {
+      const resp = await fetch('/api/devices')
+      if (resp.ok) {
+        const devices = await resp.json()
+        
+        // Look for our device ID
+        const ourDevice = devices.find(d => d.id === mqttDeviceId.value)
+        
+        if (ourDevice && ourDevice.status === 'online') {
+          console.log('✅ ESP32 connected!', ourDevice)
+          clearInterval(checkInterval)
+          
+          // Update board info with real data
+          espMac.value = ourDevice.mac
+          espIp.value = ourDevice.ip
+          
+          // Stop pairing mode
+          await stopPairing()
+          
+          // Show success
+          step.value = 4
+          
+          // Emit to parent
+          setTimeout(() => {
+            emit('provision-complete', {
+              id: `board-${props.nextDeviceId}`,
+              deviceId: props.nextDeviceId,
+              name: boardName.value,
+              mac: ourDevice.mac,
+              ip: ourDevice.ip,
+              mqtt: mqttDeviceId.value
+            })
+          }, 2000)
+        }
+      }
+    } catch (err) {
+      console.error('Error polling devices:', err)
+    }
+    
+    if (attempts >= maxAttempts) {
+      console.warn('⏱️ Pairing timeout - no device connected')
+      clearInterval(checkInterval)
+      await stopPairing()
+      alert('Pairing timeout. ESP32 did not connect within 2 minutes. Please try again.')
+      step.value = 2
+    }
+  }, 3000)
+}
+
+const stopPairing = async () => {
+  if (!pairingActive.value) return
+  
+  try {
+    const resp = await fetch('/api/pairing/stop', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    
+    if (resp.ok) {
+      console.log('🔴 Pairing mode stopped')
+      pairingActive.value = false
+    }
+  } catch (error) {
+    console.error('Error stopping pairing:', error)
+  }
+}
+
+const cancel = async () => {
+  await stopPairing()
   emit('cancel')
 }
 </script>
@@ -87,12 +185,13 @@ const cancel = () => {
         <h3>Instructions</h3>
         <ol>
           <li>Power on your new ESP32 board</li>
-          <li>The ESP32 will start in AP mode</li>
-          <li>Connect to its WiFi (ESP32-Setup)</li>
-          <li>Click “Start Setup”</li>
-          <li>Fill WiFi + MQTT settings</li>
-          <li>Click “Send Configuration”</li>
-          <li>Reconnect to your normal WiFi</li>
+          <li>ESP32 will try to connect to open networks or hotspot with password "12345678"</li>
+          <li>Click "Start Setup" below</li>
+          <li>Fill in WiFi + MQTT settings</li>
+          <li>Click "Start Pairing" - backend will listen for ESP32</li>
+          <li>ESP32 will ping gateway and receive configuration</li>
+          <li>ESP32 restarts and connects to your WiFi</li>
+          <li>Wait for confirmation (device appears in list)</li>
         </ol>
       </div>
 
@@ -116,7 +215,7 @@ const cancel = () => {
     <div v-if="step === 2">
 
       <div class="alert warn">
-        <strong>⚠️ Make sure you're connected to the ESP32 AP</strong>
+        <strong>⚠️ Make sure ESP32 is powered on and searching for networks</strong>
       </div>
 
       <h3 class="group-title">Board Information</h3>
@@ -124,11 +223,6 @@ const cancel = () => {
       <div class="field-block">
         <label>Board Name</label>
         <input v-model="boardName" placeholder="e.g. ESP32 Living Room" />
-      </div>
-
-      <div class="field-block">
-        <label>ESP32 MAC Address (optional)</label>
-        <input v-model="espMac" placeholder="AA:BB:CC:DD:EE:FF" />
       </div>
 
       <h3 class="group-title">MQTT Settings</h3>
@@ -156,16 +250,17 @@ const cancel = () => {
       </div>
 
       <div style="margin-top:20px">
-        <button @click="sendConfiguration">Send Configuration</button>
+        <button @click="startPairing">Start Pairing</button>
         <button @click="cancel" class="secondary">Cancel</button>
       </div>
     </div>
 
-    <!-- STEP 3: SENDING -->
+    <!-- STEP 3: WAITING FOR ESP32 -->
     <div v-if="step === 3" class="center-area">
       <div class="spinner"></div>
-      <h3>Sending Configuration…</h3>
-      <p>Please wait while the ESP32 restarts.</p>
+      <h3>Waiting for ESP32…</h3>
+      <p>Pairing mode active. ESP32 should connect to the network and send a ping request.</p>
+      <p class="hint">This may take up to 2 minutes. Make sure ESP32 can reach the gateway.</p>
     </div>
 
     <!-- STEP 4: SUCCESS -->
@@ -176,13 +271,13 @@ const cancel = () => {
         <p>The ESP32 is restarting and connecting to your WiFi.</p>
       </div>
 
-      <h4 class="group-title">Next Steps</h4>
+      <h4 class="group-title">What Happened</h4>
 
       <ol class="final-steps">
-        <li>Disconnect from ESP32 AP</li>
-        <li>Reconnect to your WiFi</li>
-        <li>Wait a few seconds</li>
-        <li>The new board will appear in your list</li>
+        <li>ESP32 connected to the network</li>
+        <li>ESP32 pinged the gateway and received configuration</li>
+        <li>ESP32 restarted and connected to your WiFi</li>
+        <li>ESP32 is now sending heartbeats via MQTT</li>
       </ol>
 
       <p class="closing-hint">Closing this dialog shortly…</p>
@@ -318,6 +413,11 @@ button:hover {
 }
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+.hint {
+  font-size: 14px;
+  opacity: 0.8;
+  margin-top: 10px;
 }
 
 /* Step 4 */
