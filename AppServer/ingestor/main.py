@@ -100,8 +100,6 @@ def cria_regra(regra):
             if c['tipo'] == 'limite':
                 c['last_state'] = False
                 c['time_stamp'] = time.time()
-            if c['tipo'] == 'senha':
-                c['buffer'] = ''
         regras[id] = regra
         print(f"✅ Regra {id} criada com sucesso.")
         salvar_regras_no_arquivo()
@@ -122,8 +120,6 @@ def atualiza_regra(regra):
                 if c['tipo'] == 'limite':
                     c['last_state'] = False
                     c['time_stamp'] = time.time()
-                if c['tipo'] == 'senha':
-                    c['buffer'] = ''
             print(f"✅ Regra {id} atualizada com sucesso.")
             salvar_regras_no_arquivo()
         else:
@@ -216,51 +212,37 @@ async def async_verificar_regras(client, id_device, id_sensor, value):
                 # Verifica se a condição é para este sensor/device
                 if c.get('id_device') == id_device and c.get('id_sensor') == id_sensor:
                     condicao_atendida = True # Marcamos que este sensor é relevante para esta regra
-                    if c['tipo'] == 'limite':
-                        # Extrai o valor correto se for um dict (ex: DHT22)
-                        try:
-                            valor_sensor = float(value[c['medida']]) if isinstance(value, dict) else float(value)
-                        except (KeyError, ValueError, TypeError):
-                            print(f"  [Regra {regra_id}] Medida '{c.get('medida')}' não encontrada ou valor inválido em {value}")
-                            resposta_final_condicao = False
-                            break # Se uma condição falha, a resposta_final é Falsa
-                        
-                        # Compara o valor
-                        state = operadores[c['operador']](valor_sensor, c['valor_limite'])
-                        
-                        if state != c.get('last_state', not state):
-                            c['last_state'] = state
-                            c['time_stamp'] = time.time()
-                        else:
-                            if state==False:
-                                condicao_atendida = False
-                                break
-                        
-                        if c['tempo'] == 0:
-                            # Regra sem tempo, só checa o estado
-                            if not state:
-                                resposta_final_condicao = False
-                                break
-                        else:
-                            # Regra com tempo
-                            duracao_estado_atual = time.time() - c['time_stamp']
-                            if not (state and duracao_estado_atual >= c['tempo']):
-                                # Se estado for Falso, ou se for Verdadeiro mas tempo não atingido
-                                resposta_final_condicao = False
-                                break
-                                
-                    elif c['tipo'] == 'senha':
-                        if value == '*':
-                            c['buffer']=''
-                        else:
-                            c['buffer']=f"{c['buffer']}{value}"
-                        if len(c['buffer']) == len(c['senha']):
-                            if c['buffer'] == c['senha']:
-                                resposta_final_condicao = True
-                            else:
-                                resposta_final_condicao = False
-                        else:
+                    # Extrai o valor correto se for um dict (ex: DHT22)
+                    try:
+                        valor_sensor = float(value[c['medida']]) if isinstance(value, dict) else float(value)
+                    except (KeyError, ValueError, TypeError):
+                        print(f"  [Regra {regra_id}] Medida '{c.get('medida')}' não encontrada ou valor inválido em {value}")
+                        resposta_final_condicao = False
+                        break # Se uma condição falha, a resposta_final é Falsa
+                    
+                    # Compara o valor
+                    state = operadores[c['operador']](valor_sensor, c['valor_limite'])
+                    
+                    if state != c.get('last_state', not state):
+                        c['last_state'] = state
+                        c['time_stamp'] = time.time()
+                    else:
+                        if state==False:
                             condicao_atendida = False
+                            break
+                    
+                    if c['tempo'] == 0:
+                        # Regra sem tempo, só checa o estado
+                        if not state:
+                            resposta_final_condicao = False
+                            break
+                    else:
+                        # Regra com tempo
+                        duracao_estado_atual = time.time() - c['time_stamp']
+                        if not (state and duracao_estado_atual >= c['tempo']):
+                            # Se estado for Falso, ou se for Verdadeiro mas tempo não atingido
+                            resposta_final_condicao = False
+                            break
 
             # Se o sensor não era relevante para nenhuma condição da regra, não faz nada
             if not condicao_atendida:
