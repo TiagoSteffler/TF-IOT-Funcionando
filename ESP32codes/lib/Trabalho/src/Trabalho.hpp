@@ -3,47 +3,21 @@
 using namespace std;
 // ----------------------------- INCLUDES ----------------------------
 #include <Arduino.h>   
-#include <Wire.h>   
-
+#include <Wire.h>
 #include <vector>
 #include <string>  
 
-// Wifi + MQTT + JSON
+// Wifi + MQTT + JSON + FS
 #include <WiFi.h>
 #include <WiFiManager.h>      
 #include <PubSubClient.h>  
 #include <ArduinoJson.h>    
+#include <SPIFFS.h>
 
 #include <Preferences.h> // Para armazenamento NVS das configurações MQTT
 #include "Sensors.hpp" // Inclui bibliotecas dos sensores
 
 extern Preferences preferences; // Objeto para armazenamento NVS
-
-// ---------------------------- CONFIGS MQTT --------------------------
-#define TOPICO_SUBSCRIBE_PREFIX "config"
-#define TOPICO_PUBLISH_PREFIX "sensor" 
-
-extern char BROKER_MQTT[];
-extern int BROKER_PORT;
-extern char SSID[];
-extern char PASSWORD[];
-extern char ID_DEVICE[];
-
-/* Objetos compartilhados (definidos em MQTTsettings.cpp) */
-
-extern WiFiClient espClient;
-extern PubSubClient MQTT;
-
-/* Funções do módulo MQTT/MANAGEMENT usadas pela main */
-void init_mqtt(void);
-void reconnect_mqtt(void);
-void reconnect_wifi(void);
-void verifica_conexoes_wifi_mqtt(void);
-void loadMQTTSettings(void); // Declaração da função para carregar configurações MQTT
-void saveMQTTSettings(void); // Declaração da função para salvar configurações MQTT
-void readAndPublishSensors(void);
-
-
 
 // --------------------------- CONFIG INIT ----------------------------
 /*TIPOS*/
@@ -73,16 +47,16 @@ typedef enum estado_pino_t {
 
 // Tipos de sensores
 typedef enum tipo_sensor_t{
-    MPU6050,
-    DS18B20,
+    MPU_6050,
+    DS18_B20,
     HC_SR04,
     APDS_9960,
     SG_90,
     RELE,
     JOYSTICK,
     TECLADO_4X4,
-    IR,
-    ENCODER
+    ENCODER,
+    DHT_11
 } Sensor_tipo;
 
 // Structs de pinos
@@ -97,6 +71,11 @@ typedef struct dado_sensor_t {
     int id;
     Sensor_tipo tipo;
     string desc;
+    vector<Pino> pinos;
+    int atributo1;
+    int atributo2;
+    int atributo3;
+    int atributo4;
     void *objeto; // Ponteiro para o objeto do sensor
 
 }Sensor;
@@ -106,14 +85,9 @@ extern char SENSOR_CONFIG[]; // JSON de configuração dos sensores
 void loadJSONSensorConfig();
 void saveJSONSensorConfig(const char* json_config);
 
-/*VARS*/
-//char* json_config; //JSON recebido por protocolo
-/*FUNÇÕES*/
 
 vector<Sensor> init_sensor_config(const char* json_config);
-
-
-//--------------------------------------------------------------------
+extern vector<Sensor> sensores; // Vetor global de sensores
 
 // ----------------------------- PINOS --------------------------------
 
@@ -153,6 +127,75 @@ public:
     int getSCL() { return scl_pin; }
 };
 
+
+// ---------------------------- CONFIGS MQTT --------------------------
+
+/* Configuracoes para rede */
+extern WiFiClient espClient;
+extern PubSubClient MQTT;
+
+typedef struct mqttconfig {
+  String broker;
+  String port;
+  String id;
+  bool isConfigured() {
+    return (broker.length() > 0 && port.length() > 0 && id.length() > 0);
+  }
+} MQTTConfig;
+
+typedef struct wificonfig {
+  String ssid = "";
+  String password = "";
+  bool isConfigured() {
+    return (ssid.length() > 0 && password.length() > 0);
+  }
+} WiFiConfig;
+
+extern MQTTConfig mqttConfig;
+extern WiFiConfig wifiConfig;
+
+// Controle de heartbeat
+extern unsigned long lastPing;
+extern const unsigned long PING_INTERVAL;
+
+extern I2C_Manager i2c;
+
+extern bool publishGetterMQTT;
+extern String payloadTopicSensors;
+extern String payloadSensors;
+// ------------------------------------------------------------
+
+// ------------------------ INITIALIZING ---------------------------
+int initESP();
+int initSetup();
+void initSerial();
+int initSPIFFS();
+int initMQTT(void);
+int initWiFi();
+int tryPairing();
+void handleReset();
+int searchWifi();
+
+// ------------------------- FILE MANAGEMENT ---------------------------------
+int createFileIfNotExists(const char* path);
+int saveWifiConfig(const char* ssid, const char* password);
+int saveMQTTConfig(const char* broker, const char* port, const char* id);
+void eraseConnections();
+void eraseAllConfigurations();
+
+// ----------------------------- MQTT RELATED -------------------------------------
+bool reconnectMQTT(MQTTConfig config, int maxAttempts);
+int subscribeMQTTTopics();
+void callbackMQTT(char* topic, byte* payload, unsigned int length);
+void publishHeartbeatMQTT();
+
+// --------------------------------- SENSOR CONFIG --------------------------------
+int initDevices();
+int addOrUpdateSensor(const char* jsonPayload);
+bool saveDevicesToFile();
+bool createSensorObject(Sensor &sensor);
+int removeSensorById(const char* jsonPayload);
+String buildSensorPayload(Sensor *sensor);
 // Sensores a serem utilizados:
 /*
  - [x] Sensor de temperatura DS18B20 - 1-Wire

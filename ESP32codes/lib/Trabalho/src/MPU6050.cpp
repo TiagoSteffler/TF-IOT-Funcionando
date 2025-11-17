@@ -5,7 +5,7 @@
 /// @param sda Pino SDA
 /// @param scl Pino SCL
 /// @param addr_pin Pino de endereco (endereco padrao: 0x68)
-MPU6050::MPU6050(int id, int addr_pin = -1) {
+MPU6050::MPU6050(int id, int addr_pin) {
     this->id = id;
     this->addr_pin = addr_pin;
 

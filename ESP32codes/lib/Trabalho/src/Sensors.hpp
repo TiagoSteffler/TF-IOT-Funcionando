@@ -1,3 +1,6 @@
+#ifndef SENSORS_HPP
+#define SENSORS_HPP
+
 // MPU6050
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
@@ -10,10 +13,13 @@
 // DS18B20
 #include <OneWire.h>  
 #include <DallasTemperature.h>
+// DHT11
+#include <DHT.h>
+#include <DHT_U.h>
 
 // -------------------------- CONFIG DEBUG -------------------------
 #define DEBUGCOMM false      // valores dummy de sensores para comunicacao
-#define DEBUGSENS true      // imprime valores lidos dos sensores no monitor serial
+#define DEBUGSENS false      // imprime valores lidos dos sensores no monitor serial
 
 // ------------- ESTRUTURAS DE DADOS ---------------
 // Structs de leitura do MPU6050
@@ -31,6 +37,17 @@ typedef struct apds_color_t{
 typedef struct joystick_read{
     int x, y, bot;
 } JoyRead;
+
+// Struct para leitura do DHT11
+typedef struct dht_read_t{
+    float temperature;
+    float humidity;
+} DHT_read;
+
+// Struct para leitura do Encoder
+typedef struct encoder_read_t{
+    bool obstacle_detected;
+} Encoder_read;
 // ------------------------------------------------------
 
 /// @brief Sensor de cor e gestos APDS9960
@@ -71,6 +88,46 @@ class DS18B20{
 
         // metodos publicos
         float readTemperature(Unit unit = C);
+        int getId() { return this->id; }
+};
+
+
+/// @brief Sensor de temperatura e umidade DHT11
+class DHT11_Sensor{
+    private:
+        // variaveis de controle
+        int dataPin;
+        int id;
+        DHT_Unified* dht;
+
+    public:
+        // contrutores/destrutores
+        DHT11_Sensor(int pin, int id);
+        ~DHT11_Sensor() {};
+
+        // metodos publicos
+        DHT_read getValues();
+        float getTemperature();
+        float getHumidity();
+        int getId() { return this->id; }
+};
+
+
+/// @brief Encoder rotativo para detecção de obstáculo
+class Encoder{
+    private:
+        // variaveis de controle
+        int dataPin;
+        int id;
+
+    public:
+        // contrutores/destrutores
+        Encoder(int pin, int id);
+        ~Encoder() {};
+
+        // metodos publicos
+        bool isObstacleDetected();
+        Encoder_read getValues();
         int getId() { return this->id; }
 };
 
@@ -186,7 +243,7 @@ class Relay {
         // pino e variaveis de controle
         int pin;
         uint16_t id;
-        enum State { OFF = LOW, ON = HIGH } state = OFF;
+        int state = 0;
 
     public:
         // contrutores/destrutores
@@ -194,8 +251,8 @@ class Relay {
         ~Relay() {};
 
         // metodos publicos
-        void setState(State state);
-        State getState();
+        void setState(int state);
+        int getState();
         uint16_t getId() { return this->id; }
 };
 
@@ -222,3 +279,4 @@ class SG90 {
         uint16_t getId() { return this->id; }
 };
 
+#endif // SENSORS_HPP
