@@ -194,8 +194,7 @@ def get_data(device_id, sensor_id):
         f'from(bucket: "{INFLUXDB_BUCKET}")',
         f'|> range(start: {start_range})',
         f'|> filter(fn: (r) => r["device_id"] == "{device_id}")',
-        f'|> filter(fn: (r) => r["_measurement"] == "{sensor_id}")',  # sensor_id is the measurement name
-        '|> filter(fn: (r) => r["_field"] == "value")',
+        f'|> filter(fn: (r) => r["_measurement"] == "{sensor_id}")'  # sensor_id is the measurement name
     ]
 
     if measurement:
