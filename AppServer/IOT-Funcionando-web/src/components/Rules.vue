@@ -213,8 +213,8 @@ const addThenAction = () => {
   newRule.value.entao.push({
     id_device: '',
     id_atuador: '',
-    tempo: 5,
-    valor: 0
+    valor: 0,
+    tempo: 0
   })
 }
 
@@ -233,7 +233,8 @@ const addElseAction = () => {
   newRule.value.senao.push({
     id_device: '',
     id_atuador: '',
-    valor: 0
+    valor: 0,
+    tempo: 0
   })
 }
 
@@ -436,7 +437,7 @@ onMounted(() => {
         </div>
         
         <div v-for="(action, index) in newRule.entao" :key="index" style="margin-bottom:12px; padding:12px; background:rgba(250,173,20,0.1); border-radius:8px; border:1px solid rgba(250,173,20,0.3)">
-          <div style="display:grid; grid-template-columns: 1fr 1fr 1fr auto; gap:8px; align-items:end">
+          <div style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; gap:8px; align-items:end">
             <div>
               <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Board:</label>
               <select 
@@ -471,6 +472,10 @@ onMounted(() => {
               <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Value:</label>
               <input v-model.number="action.valor" type="number" placeholder="1" style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
             </div>
+            <div>
+              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Duration (s):</label>
+              <input v-model.number="action.tempo" type="number" placeholder="0" min="0" title="0 = permanent, >0 = temporary (auto-revert to 0)" style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
+            </div>
             <button @click="removeThenAction(index)" style="padding:6px 10px; border-radius:4px; border:none; background:rgba(255,77,79,0.3); color:#ff7875; cursor:pointer; font-size:12px">🗑️</button>
           </div>
         </div>
@@ -486,7 +491,7 @@ onMounted(() => {
         </div>
         
         <div v-for="(action, index) in newRule.senao" :key="index" style="margin-bottom:12px; padding:12px; background:rgba(235,47,150,0.1); border-radius:8px; border:1px solid rgba(235,47,150,0.3)">
-          <div style="display:grid; grid-template-columns: 1fr 1fr 1fr auto; gap:8px; align-items:end">
+          <div style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; gap:8px; align-items:end">
             <div>
               <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Board:</label>
               <select 
@@ -520,6 +525,10 @@ onMounted(() => {
             <div>
               <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Value:</label>
               <input v-model.number="action.valor" type="number" placeholder="0" style="width:100%; padding:6px; border-radius:4px; border:1px solid #eb2f96; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
+            </div>
+            <div>
+              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Duration (s):</label>
+              <input v-model.number="action.tempo" type="number" placeholder="0" min="0" title="0 = permanent, >0 = temporary (auto-revert to 0)" style="width:100%; padding:6px; border-radius:4px; border:1px solid #eb2f96; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
             </div>
             <button @click="removeElseAction(index)" style="padding:6px 10px; border-radius:4px; border:none; background:rgba(255,77,79,0.3); color:#ff7875; cursor:pointer; font-size:12px">🗑️</button>
           </div>
@@ -564,7 +573,7 @@ onMounted(() => {
               <div style="margin-bottom:12px">
                 <strong style="color:#ffc53d">THEN:</strong>
                 <div v-for="(action, idx) in rule.entao" :key="idx" style="margin-left:20px; color:#bfbfbf; font-size:14px">
-                  • Set actuator {{ action.id_atuador }} ({{ action.id_device }}) to {{ action.valor }}
+                  • Set actuator {{ action.id_atuador }} ({{ action.id_device }}) to {{ action.valor }}<span v-if="action.tempo && action.tempo > 0"> for {{ action.tempo }}s</span>
                 </div>
               </div>
               
@@ -572,7 +581,7 @@ onMounted(() => {
               <div v-if="rule.senao && rule.senao.length > 0">
                 <strong style="color:#ff85c0">ELSE:</strong>
                 <div v-for="(action, idx) in rule.senao" :key="idx" style="margin-left:20px; color:#bfbfbf; font-size:14px">
-                  • Set actuator {{ action.id_atuador }} ({{ action.id_device }}) to {{ action.valor }}
+                  • Set actuator {{ action.id_atuador }} ({{ action.id_device }}) to {{ action.valor }}<span v-if="action.tempo && action.tempo > 0"> for {{ action.tempo }}s</span>
                 </div>
               </div>
             </div>
