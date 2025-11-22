@@ -34,8 +34,91 @@ const eraseNetwork = () => {
 const eraseAll = () => {
   if (confirm('Erase ALL configuration (network + pins)? This cannot be undone.')) {
     emit('erase-all')
+    
+    // Clear success message after 5 seconds
+    setTimeout(() => {
+      successMessage.value = null
+    }, 5000)
+    
+  } catch (err) {
+    error.value = err.message
+    console.error('Error resetting device:', err)
+  } finally {
+    saving.value = false
   }
 }
+
+// Initialize device ID when component mounts or device changes
+onMounted(() => {
+  mqttDeviceId.value = `esp32_device_${props.deviceId}`
+  // Optionally fetch current settings
+  // fetchWifiSettings(props.deviceId)
+})
+
+watch(() => props.deviceId, (newId) => {
+  mqttDeviceId.value = `esp32_device_${newId}`
+  // Optionally fetch current settings
+  // fetchWifiSettings(newId)
+})
+
+// Clear InfluxDB data
+const clearingInfluxDB = ref(false)
+
+const clearInfluxDB = async () => {
+  const confirmed = confirm(
+    '⚠️ WARNING: This will DELETE ALL sensor data from InfluxDB!\n\n' +
+    'This includes historical readings from all sensors and boards.\n' +
+    'This action CANNOT be undone.\n\n' +
+    'Are you absolutely sure you want to continue?'
+  )
+  
+  if (!confirmed) {
+    return
+  }
+  
+  // Double confirmation
+  const doubleConfirm = confirm(
+    'FINAL CONFIRMATION\n\n' +
+    'All sensor data will be permanently deleted.\n\n' +
+    'Type YES in your mind and click OK to proceed, or Cancel to abort.'
+  )
+  
+  if (!doubleConfirm) {
+    return
+  }
+  
+  clearingInfluxDB.value = true
+  error.value = null
+  successMessage.value = null
+  
+  try {
+    const response = await fetch('/influxdb/clear', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+    
+    if (!response.ok) {
+      throw new Error(`Failed to clear InfluxDB: ${response.status}`)
+    }
+    
+    const result = await response.json()
+    successMessage.value = '✅ InfluxDB cleared successfully! All sensor data has been deleted.'
+    console.log('InfluxDB cleared:', result)
+    
+    setTimeout(() => {
+      successMessage.value = null
+    }, 5000)
+    
+  } catch (err) {
+    error.value = err.message
+    console.error('Error clearing InfluxDB:', err)
+  } finally {
+    clearingInfluxDB.value = false
+  }
+}
+
 </script>
 
 <template>
@@ -73,8 +156,19 @@ const eraseAll = () => {
 
       <div class="button-row">
         <button class="danger" @click="eraseNetwork">Erase Network Settings</button>
-        <button class="danger-strong" @click="eraseAll">Erase All Configuration</button>
+        <button class="danger-strong" @click="eraseAll" :disabled="saving">
+          {{ saving ? 'Resetting...' : 'Erase All Configuration' }}
+        </button>
       </div>
+
+      <div class="button-row" style="margin-top:16px">
+        <button class="danger-strong" @click="clearInfluxDB" :disabled="clearingInfluxDB">
+          {{ clearingInfluxDB ? 'Clearing Database...' : '🗑️ Clear All InfluxDB Data' }}
+        </button>
+      </div>
+      <p style="font-size:12px; color:#ff7875; margin-top:8px">
+        ⚠️ This will permanently delete ALL sensor readings from InfluxDB. Use this to clean up after changing sensor configurations.
+      </p>
     </div>
   </section>
 </template>

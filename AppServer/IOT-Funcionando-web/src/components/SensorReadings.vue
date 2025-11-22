@@ -24,7 +24,9 @@ const fetchReadings = async (deviceId, sensorId) => {
   
   try {
     const mqttDeviceId = `esp32_device_${deviceId}`
-    const response = await fetch(`http://localhost:5000/${mqttDeviceId}/sensors/${sensorId}/read`)
+    const url = `/${mqttDeviceId}/sensors/${sensorId}/read?start=${timeRange.value}`
+    console.log('📡 Fetching from:', url)
+    const response = await fetch(url)
     if (!response.ok) {
       throw new Error(`Failed to fetch readings: ${response.status} ${response.statusText}`)
     }
@@ -52,12 +54,19 @@ const renderChart = (data) => {
   // Extract time and value from JSON structure
   const labels = data.map(row => {
     const time = new Date(row.time)
-    return time.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    return time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
   })
   const values = data.map(row => parseFloat(row.value) || 0)
   
   // Use measurement name for chart label if available
   const measurementName = data[0]?.measurement || 'Sensor Reading'
+  
+  // Calculate min/max for better y-axis scaling
+  const minValue = Math.min(...values)
+  const maxValue = Math.max(...values)
+  const padding = (maxValue - minValue) * 0.1 || 1
+  
+  console.log('Chart data - labels:', labels.length, 'values:', values.length, 'range:', minValue, '-', maxValue)
   
   chartInstance = new Chart(ctx, {
     type: 'line',
@@ -68,14 +77,30 @@ const renderChart = (data) => {
         data: values,
         borderColor: '#3182ce',
         backgroundColor: 'rgba(49, 130, 206, 0.1)',
-        tension: 0.2
+        borderWidth: 2,
+        pointRadius: 3,
+        pointHoverRadius: 5,
+        fill: true,
+        tension: 0.3
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { display: true, position: 'top' }
+        legend: { 
+          display: true, 
+          position: 'top',
+          labels: {
+            font: { size: 14, weight: 'bold' }
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          titleFont: { size: 14 },
+          bodyFont: { size: 13 },
+          padding: 12
+        }
       },
       scales: {
         y: {
@@ -117,8 +142,12 @@ watch(() => [props.selectedPin, props.deviceId], ([newPin, newDeviceId]) => {
     </div>
 
     <div v-else-if="readingsData && readingsData.length">
-      <div style="height:300px; margin-bottom:16px">
-        <canvas ref="chartRef"></canvas>
+      <div style="background:#f7fafc; padding:16px; border-radius:8px; margin-bottom:16px">
+        <div style="display:flex; justify-content:space-between; margin-bottom:8px">
+          <span><strong>Data Points:</strong> {{ readingsData.length }}</span>
+          <span><strong>Latest Value:</strong> {{ readingsData[readingsData.length - 1]?.value }}</span>
+          <span><strong>Time:</strong> {{ new Date(readingsData[readingsData.length - 1]?.time).toLocaleTimeString() }}</span>
+        </div>
       </div>
 
       <details>

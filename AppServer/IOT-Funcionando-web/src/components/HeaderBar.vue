@@ -10,7 +10,7 @@ const views = [
   { id: 'SettingsPanel', label: '⚙ CONFIGURAÇÃO' },
   { id: 'SensorPanel', label: '☄ PAINEL' },
   { id: 'SensorList', label: '🗒 SENSORES' },
-  { id: 'PinPreview', label: '⚲ PINOS' },
+  { id: 'Rules', label: '⚲ REGRAS' },
   { id: 'SensorReadings', label: '🕮 LEITURAS' },
   { id: 'SensorSetup', label: '🛠 SETUP' }
 ]
