@@ -38,12 +38,6 @@ export default defineConfig({
         target: 'http://api_server:5000',
         changeOrigin: true,
         secure: false
-      },
-      // Proxy InfluxDB management endpoints to api_server
-      '/influxdb': {
-        target: 'http://api_server:5000',
-        changeOrigin: true,
-        secure: false
       }
     }
   }

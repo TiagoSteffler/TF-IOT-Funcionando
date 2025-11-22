@@ -1,3 +1,2 @@
 aiomqtt
 influxdb-client[async]
-aiohttp>=3.8.0

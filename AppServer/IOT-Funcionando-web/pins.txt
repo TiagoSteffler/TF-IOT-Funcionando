@@ -1,14 +1,13 @@
 14 - touch - ADC
 13 - touch - ADC
 12 - touch - ADC
-11 - touch - ADC
 10 - touch - ADC
 9 - touch - ADC
-46 - log (X)
+46 - log
 3 - touch - ADC
 8 - touch - ADC
-18 - ADC - I2C (SCL)
-17 - ADC - I2C (SDA)
+18 - ADC
+17 - ADC
 16 - ADC
 15 - ADC
 7 - touch - ADC

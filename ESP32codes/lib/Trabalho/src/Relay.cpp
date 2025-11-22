@@ -20,20 +20,20 @@ Relay::Relay(int pin, uint16_t id) {
 
 /// @brief Define o estado do rele
 /// @param state Novo estado do rele
-void Relay::setState(State state) {
+void Relay::setState(int state) {
     this->state = state;
     digitalWrite(this->pin, this->state);
     if (DEBUGSENS) {
         Serial.print("[Rele ID ");
         Serial.print(this->id);
-        Serial.println(this->state == Relay::ON ? "] ligado " : "] desligado ");
+        Serial.println(this->state == 1 ? "] ligado " : "] desligado ");
     }
 }
 
 
 /// @brief Retorna o estado atual do rele
 /// @return Estado atual do rele (ON ou OFF)
-Relay::State Relay::getState() {
+int Relay::getState() {
     if (DEBUGSENS) {
         Serial.print("[Rele ID ");
         Serial.print(this->id);

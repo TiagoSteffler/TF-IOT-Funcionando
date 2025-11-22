@@ -39,9 +39,6 @@ services:
     build:
       context: ./ingestor # Pasta onde estarão seu Dockerfile e script Python
     container_name: ingestor_service
-    volumes:
-    # Persiste o arquivo de regras no host (dentro da pasta ./ingestor)
-       - ./ingestor:/app
     depends_on:
       - mosquitto
       - influxdb
@@ -72,30 +69,12 @@ services:
       - INFLUXDB_TOKEN=meu-token-super-secreto
       - INFLUXDB_ORG=ufsm-iot
       - INFLUXDB_BUCKET=sensores
-      - ENDPOINT_NAME=API_DEFAULT
       - MQTT_BROKER_HOST=mosquitto
       - MQTT_BROKER_PORT=1883
     restart: always
     networks:
       - iot-net
       
-  # Backend service for device provisioning and pairing
-  backend:
-    build:
-      context: ./IOT-Funcionando-web/backend
-    container_name: iot-backend
-    ports:
-      - "3001:3001" # Backend API port
-    depends_on:
-      - mosquitto
-    environment:
-      - PORT=3001
-      - MQTT_BROKER=mqtt://mosquitto:1883
-      - MQTT_CLIENT_ID=esp32-manager
-    restart: always
-    networks:
-      - iot-net
-
   web:
     image: node:20-alpine
     container_name: iot-web
@@ -111,22 +90,6 @@ services:
       - CHOKIDAR_USEPOLLING=true # helps file watching when host is Windows
     depends_on:
       - mosquitto
-      - backend
-    networks:
-      - iot-net
-
-  # 5. Dummy ESP32 Simulator (for testing without hardware)
-  dummy_esp32:
-    build:
-      context: ./dummy-esp32
-    container_name: dummy_esp32_1
-    depends_on:
-      - mosquitto
-    environment:
-      - DEVICE_ID=esp32_device_1
-      - MQTT_BROKER=mosquitto
-      - MQTT_PORT=1883
-    restart: always
     networks:
       - iot-net
 
