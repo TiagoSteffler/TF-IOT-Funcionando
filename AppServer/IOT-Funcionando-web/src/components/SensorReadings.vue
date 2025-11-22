@@ -27,7 +27,7 @@ const fetchReadings = async (deviceId, sensorId) => {
   
   try {
     const mqttDeviceId = `esp32_device_${deviceId}`
-    const url = `/${mqttDeviceId}/sensors/${sensorId}/read?start=${timeRange.value}`
+    const url = `/${mqttDeviceId}/sensors/sensor_${sensorId}/read?start=${timeRange.value}`
     console.log('📡 Fetching from:', url)
     const response = await fetch(url)
     if (!response.ok) {
@@ -80,38 +80,83 @@ const renderChart = (data) => {
   
   const ctx = chartRef.value.getContext('2d')
   
-  // Extract time and value from JSON structure
-  const labels = data.map(row => {
-    const time = new Date(row.time)
+  // Group data by timestamp and extract all fields
+  // Structure: { "timestamp": { "x": 1127, "y": 1971, "button": 0 } }
+  const timeGrouped = {}
+  const fieldNames = new Set()
+  
+  data.forEach(row => {
+    const timestamp = row.time
+    const valueDict = row.value
+    
+    if (!timeGrouped[timestamp]) {
+      timeGrouped[timestamp] = {}
+    }
+    
+    // Merge all fields from this value dict
+    if (typeof valueDict === 'object' && valueDict !== null) {
+      Object.entries(valueDict).forEach(([field, value]) => {
+        timeGrouped[timestamp][field] = parseFloat(value) || 0
+        fieldNames.add(field)
+      })
+    } else {
+      // Fallback for single numeric values (shouldn't happen with new API)
+      timeGrouped[timestamp]['value'] = parseFloat(valueDict) || 0
+      fieldNames.add('value')
+    }
+  })
+  
+  // Convert to sorted array by timestamp
+  const sortedTimestamps = Object.keys(timeGrouped).sort()
+  
+  // Create labels from timestamps
+  const labels = sortedTimestamps.map(timestamp => {
+    const time = new Date(timestamp)
     return time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
   })
-  const values = data.map(row => parseFloat(row.value) || 0)
   
-  // Use measurement name for chart label if available
-  const measurementName = data[0]?.measurement || 'Sensor Reading'
+  // Create datasets for each field
+  const colors = [
+    { border: '#3182ce', background: 'rgba(49, 130, 206, 0.1)' },   // Blue
+    { border: '#38a169', background: 'rgba(56, 161, 105, 0.1)' },   // Green
+    { border: '#e53e3e', background: 'rgba(229, 62, 62, 0.1)' },    // Red
+    { border: '#dd6b20', background: 'rgba(221, 107, 32, 0.1)' },   // Orange
+    { border: '#9f7aea', background: 'rgba(159, 122, 234, 0.1)' },  // Purple
+    { border: '#ed64a6', background: 'rgba(237, 100, 166, 0.1)' }   // Pink
+  ]
   
-  // Calculate min/max for better y-axis scaling
-  const minValue = Math.min(...values)
-  const maxValue = Math.max(...values)
+  const datasets = Array.from(fieldNames).map((fieldName, index) => {
+    const colorIndex = index % colors.length
+    const color = colors[colorIndex]
+    
+    return {
+      label: fieldName,
+      data: sortedTimestamps.map(timestamp => timeGrouped[timestamp][fieldName] || null),
+      borderColor: color.border,
+      backgroundColor: color.background,
+      borderWidth: 2,
+      pointRadius: 3,
+      pointHoverRadius: 5,
+      fill: true,
+      tension: 0.3
+    }
+  })
+  
+  // Calculate min/max across all datasets for y-axis scaling
+  const allValues = datasets.flatMap(ds => ds.data.filter(v => v !== null))
+  const minValue = Math.min(...allValues)
+  const maxValue = Math.max(...allValues)
   const padding = (maxValue - minValue) * 0.1 || 1
   
-  console.log('Chart data - labels:', labels.length, 'values:', values.length, 'range:', minValue, '-', maxValue)
+  const measurementName = data[0]?.measurement || 'Sensor Reading'
+  
+  console.log('Chart data - fields:', Array.from(fieldNames).join(', '), 'timestamps:', labels.length, 'range:', minValue, '-', maxValue)
   
   chartInstance = new Chart(ctx, {
     type: 'line',
     data: {
       labels,
-      datasets: [{
-        label: measurementName,
-        data: values,
-        borderColor: '#3182ce',
-        backgroundColor: 'rgba(49, 130, 206, 0.1)',
-        borderWidth: 2,
-        pointRadius: 3,
-        pointHoverRadius: 5,
-        fill: true,
-        tension: 0.3
-      }]
+      datasets
     },
     options: {
       responsive: true,
@@ -121,11 +166,18 @@ const renderChart = (data) => {
         mode: 'index'
       },
       plugins: {
+        title: {
+          display: true,
+          text: measurementName,
+          font: { size: 16, weight: 'bold' }
+        },
         legend: { 
           display: true, 
           position: 'top',
           labels: {
-            font: { size: 14, weight: 'bold' }
+            font: { size: 14, weight: 'bold' },
+            usePointStyle: true,
+            padding: 15
           }
         },
         tooltip: {
@@ -267,10 +319,14 @@ onUnmounted(() => {
 
     <div v-else-if="readingsData && readingsData.length">
       <div style="background:#f7fafc; padding:16px; border-radius:8px; margin-bottom:16px">
-        <div style="display:flex; justify-content:space-between; margin-bottom:8px">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:12px">
           <span><strong>Data Points:</strong> {{ readingsData.length }}</span>
-          <span><strong>Latest Value:</strong> {{ readingsData[readingsData.length - 1]?.value }}</span>
           <span><strong>Time:</strong> {{ new Date(readingsData[readingsData.length - 1]?.time).toLocaleTimeString() }}</span>
+          <div style="display:flex; gap:16px; flex-wrap:wrap">
+            <span v-for="(val, key) in readingsData[readingsData.length - 1]?.value" :key="key">
+              <strong>{{ key }}:</strong> {{ val }}
+            </span>
+          </div>
         </div>
       </div>
       

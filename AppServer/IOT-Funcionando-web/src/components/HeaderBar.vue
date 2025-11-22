@@ -10,8 +10,7 @@ const views = [
   { id: 'SettingsPanel', label: '⚙ CONFIGURAÇÃO' },
   { id: 'SensorList', label: '🗒 SENSORES' },
   { id: 'Rules', label: '⚲ REGRAS' },
-  { id: 'SensorReadings', label: '🕮 LEITURAS' },
-  { id: 'SensorSetup', label: '🛠 SETUP' }
+  { id: 'SensorReadings', label: '🕮 LEITURAS' }
 ]
 
 const selected = ref(views[0].id)
