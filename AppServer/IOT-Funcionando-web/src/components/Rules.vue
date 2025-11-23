@@ -35,48 +35,48 @@ const editRule = ref({
   senao: []
 })
 
-// Load boards from localStorage
+// placas carregadas em cache
 const loadBoards = () => {
   try {
     const stored = localStorage.getItem('esp32_boards')
     boards.value = stored ? JSON.parse(stored) : []
-    console.log('📋 Loaded boards:', boards.value)
+    console.log('Placas carregadas:', boards.value)
   } catch (e) {
-    console.error('Error loading boards:', e)
+    console.error('Erro ao carregar placas:', e)
     boards.value = []
   }
 }
 
-// Save sensors to localStorage
+// Salva sensores no localStorage
 const saveSensorsToStorage = () => {
   try {
     localStorage.setItem(SENSORS_STORAGE_KEY, JSON.stringify(boardSensors.value))
-    console.log('💾 Saved sensors to localStorage')
+    console.log('Sensores salvos no localStorage')
   } catch (e) {
-    console.error('Error saving sensors to localStorage:', e)
+    console.error('Erro ao salvar sensores no localStorage:', e)
   }
 }
 
-// Load sensors from localStorage
+// Carrega sensores do localStorage
 const loadSensorsFromStorage = () => {
   try {
     const stored = localStorage.getItem(SENSORS_STORAGE_KEY)
     if (stored) {
       boardSensors.value = JSON.parse(stored)
-      console.log('📦 Loaded cached sensors:', Object.keys(boardSensors.value))
+      console.log('Sensores carregados:', Object.keys(boardSensors.value))
       return true
     }
   } catch (e) {
-    console.error('Error loading sensors from localStorage:', e)
+    console.error('Erro ao carregar sensores do cache:', e)
   }
   return false
 }
 
-// Fetch sensors for a specific board
+// busca os sensores ao escolher a placa
 const fetchSensorsForBoard = async (deviceId) => {
   const mqttDeviceId = `esp32_device_${deviceId}`
   
-  if (loadingSensors.value[mqttDeviceId]) return // Already loading
+  if (loadingSensors.value[mqttDeviceId]) return // Já está carregando
   
   loadingSensors.value[mqttDeviceId] = true
   
@@ -84,21 +84,21 @@ const fetchSensorsForBoard = async (deviceId) => {
     const response = await fetch(`http://localhost:5000/${mqttDeviceId}/settings/sensors/get`)
     
     if (!response.ok) {
-      throw new Error(`Failed to fetch sensors: ${response.status}`)
+      throw new Error(`Falha ao buscar sensores: ${response.status}`)
     }
     
     const data = await response.json()
-    console.log(`📡 Raw response for ${mqttDeviceId}:`, data)
+    console.log(`Resposta para ${mqttDeviceId}:`, data)
     
     // Handle response - could be { sensors: [...] } or just [...]
     boardSensors.value[mqttDeviceId] = data.sensors || data || []
-    console.log(`✅ Loaded ${boardSensors.value[mqttDeviceId].length} sensors for ${mqttDeviceId}`)
+    console.log(`Carregados ${boardSensors.value[mqttDeviceId].length} sensores para ${mqttDeviceId}`)
     
-    // Save to localStorage
+    // salva no cache
     saveSensorsToStorage()
   } catch (err) {
-    console.error(`❌ Error fetching sensors for ${mqttDeviceId}:`, err)
-    // Keep cached data if fetch fails
+    console.error(`Erro ao buscar sensores para ${mqttDeviceId}:`, err)
+    // nao apaga o cache
     if (!boardSensors.value[mqttDeviceId]) {
       boardSensors.value[mqttDeviceId] = []
     }
@@ -113,16 +113,16 @@ const getSensorsForDevice = (deviceId) => {
   return boardSensors.value[mqttDeviceId] || []
 }
 
-// Refresh all sensors for all boards
+// busca tudo tudo
 const refreshAllSensors = async () => {
-  console.log('🔄 Refreshing sensors for all boards...')
+  console.log('Buscando sensores para todas as placas')
   for (const board of boards.value) {
     await fetchSensorsForBoard(board.deviceId)
   }
-  console.log('✅ All sensors refreshed')
+  console.log('Todos os sensores atualizados')
 }
 
-// Fetch existing rules
+// busca as regras existentes
 const fetchRules = async () => {
   loading.value = true
   error.value = null
@@ -133,21 +133,21 @@ const fetchRules = async () => {
     })
     
     if (!response.ok) {
-      throw new Error(`Failed to fetch rules: ${response.status}`)
+      throw new Error(`Falha ao buscar regras: ${response.status}`)
     }
     
     const data = await response.json()
     rules.value = data.rules || []
-    console.log('📋 Loaded rules:', rules.value)
+    console.log('Regras carregadas:', rules.value)
   } catch (err) {
     error.value = err.message
-    console.error('Error fetching rules:', err)
+    console.error('Erro ao buscar regras:', err)
   } finally {
     loading.value = false
   }
 }
 
-// Create new rule
+// cria uma regra
 const createRule = async () => {
   try {
     const response = await fetch('/rules', {
@@ -157,20 +157,20 @@ const createRule = async () => {
     })
     
     if (!response.ok) {
-      throw new Error(`Failed to create rule: ${response.status}`)
+      throw new Error(`Falha ao criar regra: ${response.status}`)
     }
     
-    console.log('✅ Rule created successfully')
+    console.log('Regra criada com sucesso')
     showAddForm.value = false
     resetNewRule()
     await fetchRules()
   } catch (err) {
-    alert(`Error creating rule: ${err.message}`)
-    console.error('Error creating rule:', err)
+    alert(`Erro ao criar regra: ${err.message}`)
+    console.error('Erro ao criar regra:', err)
   }
 }
 
-// Start editing a rule
+// edita a regra
 const startEdit = (rule) => {
   editingRuleId.value = rule.id_regra
   editRule.value = {
@@ -182,7 +182,7 @@ const startEdit = (rule) => {
   showEditForm.value = true
   showAddForm.value = false
   
-  // Load sensors for all devices used in the rule
+  // Carrega sensores para todos os dispositivos usados na regra (capaz que tem sensor/placa apagada)
   const deviceIds = new Set()
   rule.condicao?.forEach(c => c.id_device && deviceIds.add(c.id_device))
   rule.entao?.forEach(a => a.id_device && deviceIds.add(a.id_device))
@@ -193,7 +193,7 @@ const startEdit = (rule) => {
   })
 }
 
-// Update existing rule
+// atualiza regra
 const updateRule = async () => {
   try {
     const response = await fetch('/rules', {
@@ -203,10 +203,10 @@ const updateRule = async () => {
     })
     
     if (!response.ok) {
-      throw new Error(`Failed to update rule: ${response.status}`)
+      throw new Error(`Falha ao atualizar regra: ${response.status}`)
     }
     
-    console.log('✅ Rule updated successfully')
+    console.log('Regra atualizada com sucesso')
     showEditForm.value = false
     editingRuleId.value = null
     resetEditRule()
@@ -217,16 +217,16 @@ const updateRule = async () => {
   }
 }
 
-// Cancel editing
+// cancela pq vai dar cagada
 const cancelEdit = () => {
   showEditForm.value = false
   editingRuleId.value = null
   resetEditRule()
 }
 
-// Delete rule
+// apaga regra pois isto é uma democracia
 const deleteRule = async (ruleId) => {
-  if (!confirm(`Delete rule "${ruleId}"? This cannot be undone.`)) {
+  if (!confirm(`Excluir regra "${ruleId}"? Isso não pode ser desfeito.`)) {
     return
   }
   
@@ -238,18 +238,18 @@ const deleteRule = async (ruleId) => {
     })
     
     if (!response.ok) {
-      throw new Error(`Failed to delete rule: ${response.status}`)
+      throw new Error(`Falha ao apagar regra: ${response.status}`)
     }
     
-    console.log('✅ Rule deleted successfully')
+    console.log('Regra apagada com sucesso')
     await fetchRules()
   } catch (err) {
-    alert(`Error deleting rule: ${err.message}`)
-    console.error('Error deleting rule:', err)
+    alert(`Erro ao apagar regra: ${err.message}`)
+    console.error('Erro ao apagar regra:', err)
   }
 }
 
-// Add condition to new rule
+// adiciona condição de leitura de sensor
 const addCondition = () => {
   newRule.value.condicao.push({
     tipo: 'limite',
@@ -262,7 +262,7 @@ const addCondition = () => {
   })
 }
 
-// Add password condition
+// adiciona condição de senha
 const addPasswordCondition = () => {
   newRule.value.condicao.push({
     tipo: 'senha',
@@ -272,44 +272,44 @@ const addPasswordCondition = () => {
   })
 }
 
-// Add action to "then" branch
+// adiciona o 'se'
 const addThenAction = () => {
   newRule.value.entao.push({
     id_device: '',
     id_atuador: '',
     valor: 0,
     tempo: 0,
-    modo: 'set' // 'set' or 'toggle'
+    modo: 'set' // 'set' ou 'toggle'
   })
 }
 
-// Remove condition
+// apaga condição
 const removeCondition = (index) => {
   newRule.value.condicao.splice(index, 1)
 }
 
-// Remove action
+// apaga ação 'se'
 const removeThenAction = (index) => {
   newRule.value.entao.splice(index, 1)
 }
 
-// Add action to "else" branch
+// adiciona o 'senao'
 const addElseAction = () => {
   newRule.value.senao.push({
     id_device: '',
     id_atuador: '',
     valor: 0,
     tempo: 0,
-    modo: 'set' // 'set' or 'toggle'
+    modo: 'set' // 'set' ou 'toggle'
   })
 }
 
-// Remove else action
+// apaga ação 'senao'
 const removeElseAction = (index) => {
   newRule.value.senao.splice(index, 1)
 }
 
-// Reset form
+// Reseta regra
 const resetNewRule = () => {
   newRule.value = {
     id_regra: '',
@@ -319,7 +319,7 @@ const resetNewRule = () => {
   }
 }
 
-// Edit rule helpers
+// Helpers para editar regra
 const addEditCondition = () => {
   editRule.value.condicao.push({
     tipo: 'limite',
@@ -347,7 +347,7 @@ const addEditThenAction = () => {
     id_atuador: '',
     valor: 0,
     tempo: 0,
-    modo: 'set' // 'set' or 'toggle'
+    modo: 'set' // 'set' ou 'toggle'
   })
 }
 
@@ -357,7 +357,7 @@ const addEditElseAction = () => {
     id_atuador: '',
     valor: 0,
     tempo: 0,
-    modo: 'set' // 'set' or 'toggle'
+    modo: 'set' // 'set' ou 'toggle'
   })
 }
 
@@ -382,66 +382,9 @@ const resetEditRule = () => {
   }
 }
 
-// Clear InfluxDB data
-const clearingInfluxDB = ref(false)
 const successMessage = ref(null)
 
-const clearInfluxDB = async () => {
-  const confirmed = confirm(
-    '⚠️ WARNING: This will DELETE ALL sensor data from InfluxDB!\n\n' +
-    'This includes historical readings from all sensors and boards.\n' +
-    'This action CANNOT be undone.\n\n' +
-    'Are you absolutely sure you want to continue?'
-  )
-  
-  if (!confirmed) {
-    return
-  }
-  
-  // Double confirmation
-  const doubleConfirm = confirm(
-    'FINAL CONFIRMATION\n\n' +
-    'All sensor data will be permanently deleted.\n\n' +
-    'Click OK to proceed, or Cancel to abort.'
-  )
-  
-  if (!doubleConfirm) {
-    return
-  }
-  
-  clearingInfluxDB.value = true
-  error.value = null
-  successMessage.value = null
-  
-  try {
-    const response = await fetch('/influxdb/clear', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    })
-    
-    if (!response.ok) {
-      throw new Error(`Failed to clear InfluxDB: ${response.status}`)
-    }
-    
-    const result = await response.json()
-    successMessage.value = '✅ InfluxDB cleared successfully! All sensor data has been deleted.'
-    console.log('InfluxDB cleared:', result)
-    
-    setTimeout(() => {
-      successMessage.value = null
-    }, 5000)
-    
-  } catch (err) {
-    error.value = err.message
-    console.error('Error clearing InfluxDB:', err)
-  } finally {
-    clearingInfluxDB.value = false
-  }
-}
-
-// Helper function to determine if a sensor uses string values
+// verifica se o sensor é de string (teclado)
 const isStringSensor = (deviceId, sensorId) => {
   if (!deviceId || !sensorId) return false
   
@@ -451,26 +394,26 @@ const isStringSensor = (deviceId, sensorId) => {
   const sensor = sensors.find(s => s.id === sensorId)
   if (!sensor) return false
   
-  // Sensor types that use strings: 5 = Keypad (matriz de botões)
-  const STRING_SENSOR_TYPES = [5]
+  // Tipos de sensor que usam strings: 7 = Teclado 4x4
+  const STRING_SENSOR_TYPES = [7]
   return STRING_SENSOR_TYPES.includes(sensor.tipo)
 }
 
 onMounted(() => {
   loadBoards()
   
-  // Load cached sensors first for instant UI
+  // carrega cache
   const hasCachedSensors = loadSensorsFromStorage()
   
   fetchRules()
   
-  // Refresh sensors in background for all boards
+  // atualiza todos os sensores de todas as placas
   boards.value.forEach(board => {
     fetchSensorsForBoard(board.deviceId)
   })
   
   if (!hasCachedSensors && boards.value.length > 0) {
-    console.log('⚠️ No cached sensors found. First-time load may take a moment...')
+    console.log('Nenhum sensor em cache encontrado, buscando todos os sensores')
   }
 })
 </script>
@@ -478,30 +421,22 @@ onMounted(() => {
 <template>
   <section>
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px">
-      <h2 style="margin:0">Automation Rules</h2>
+      <h2 style="margin:0">Regras</h2>
       <div style="display:flex; gap:12px">
-        <button 
-          @click="clearInfluxDB"
-          :disabled="clearingInfluxDB"
-          style="padding:10px 20px; border-radius:8px; border:none; background:#ff4d4f; color:white; cursor:pointer; font-weight:600; font-size:14px"
-          :style="{ opacity: clearingInfluxDB ? 0.5 : 1 }"
-          title="Delete all sensor data from InfluxDB"
-        >
-          {{ clearingInfluxDB ? 'Clearing...' : '🗑️ Clear Database' }}
-        </button>
+
         <button 
           @click="refreshAllSensors"
           :disabled="Object.values(loadingSensors).some(v => v)"
           style="padding:10px 20px; border-radius:8px; border:none; background:#52c41a; color:white; cursor:pointer; font-weight:600; font-size:14px; opacity: 1"
           :style="{ opacity: Object.values(loadingSensors).some(v => v) ? 0.5 : 1 }"
         >
-          🔄 Refresh Sensors
+          Atualizar sensores
         </button>
         <button 
           @click="showAddForm = !showAddForm"
           style="padding:10px 20px; border-radius:8px; border:none; background:#1890ff; color:white; cursor:pointer; font-weight:600; font-size:14px"
         >
-          {{ showAddForm ? '❌ Cancel' : '➕ New Rule' }}
+          {{ showAddForm ? 'Cancelar' : 'Nova regra' }}
         </button>
       </div>
     </div>
@@ -521,7 +456,7 @@ onMounted(() => {
       <h3 style="margin-top:0; color:#ffc53d">Edit Rule: {{ editRule.id_regra }}</h3>
       
       <div style="margin-bottom:16px">
-        <label style="display:block; color:#ffc53d; font-weight:600; margin-bottom:8px">Rule ID (read-only):</label>
+        <label style="display:block; color:#ffc53d; font-weight:600; margin-bottom:8px">ID da regra:</label>
         <input 
           v-model="editRule.id_regra" 
           disabled
@@ -535,10 +470,10 @@ onMounted(() => {
           <h4 style="margin:0; color:#95de64">Conditions (IF)</h4>
           <div style="display:flex; gap:8px">
             <button @click="addEditCondition" style="padding:6px 12px; border-radius:6px; border:none; background:#52c41a; color:white; cursor:pointer; font-weight:600; font-size:12px">
-              ➕ Limit Condition
+              Condição de limite
             </button>
             <button @click="addEditPasswordCondition" style="padding:6px 12px; border-radius:6px; border:none; background:#52c41a; color:white; cursor:pointer; font-weight:600; font-size:12px">
-              🔑 Password Condition
+              Condição de senha
             </button>
           </div>
         </div>
@@ -553,7 +488,7 @@ onMounted(() => {
                 @change="fetchSensorsForBoard(cond.id_device.replace('esp32_device_', ''))"
                 style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
               >
-                <option value="" disabled>Select board...</option>
+                <option value="" disabled>Selecione a placa...</option>
                 <option v-for="board in boards" :key="board.id" :value="`esp32_device_${board.deviceId}`">
                   {{ board.name }} (ID: {{ board.deviceId }})
                 </option>
@@ -566,18 +501,18 @@ onMounted(() => {
                 :disabled="!cond.id_device"
                 style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
               >
-                <option value="" disabled>{{ cond.id_device ? 'Select sensor...' : 'Select board first' }}</option>
+                <option value="" disabled>{{ cond.id_device ? 'Selecione o sensor...' : 'Selecione a placa primeiro' }}</option>
                 <option 
                   v-for="sensor in getSensorsForDevice(cond.id_device?.replace('esp32_device_', ''))"
                   :key="sensor.id" 
                   :value="sensor.id"
                 >
-                  {{ sensor.desc || `Sensor ${sensor.id}` }} (Type: {{ sensor.tipo }})
+                  {{ sensor.desc || `Sensor ${sensor.id}` }} (Tipo: {{ sensor.tipo }})
                 </option>
               </select>
             </div>
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Field Name:</label>
+              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Nome do campo:</label>
               <input 
                 v-model="cond.medida" 
                 placeholder="e.g., x, y, bt, temperature"
@@ -628,20 +563,20 @@ onMounted(() => {
                 @change="fetchSensorsForBoard(cond.id_device.replace('esp32_device_', ''))"
                 style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
               >
-                <option value="" disabled>Select board...</option>
+                <option value="" disabled>Selecione a placa...</option>
                 <option v-for="board in boards" :key="board.id" :value="`esp32_device_${board.deviceId}`">
                   {{ board.name }} (ID: {{ board.deviceId }})
                 </option>
               </select>
             </div>
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Keypad Sensor:</label>
+              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Teclado:</label>
               <select 
                 v-model="cond.id_sensor" 
                 :disabled="!cond.id_device"
                 style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
               >
-                <option value="" disabled>{{ cond.id_device ? 'Select keypad...' : 'Select board first' }}</option>
+                <option value="" disabled>{{ cond.id_device ? 'Selecione o teclado...' : 'Selecione a placa primeiro' }}</option>
                 <option 
                   v-for="sensor in getSensorsForDevice(cond.id_device?.replace('esp32_device_', '')).filter(s => s.tipo === 7)"
                   :key="sensor.id" 
@@ -663,14 +598,14 @@ onMounted(() => {
       <!-- Then Actions -->
       <div style="margin-bottom:20px">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
-          <h4 style="margin:0; color:#ffc53d">Actions (THEN)</h4>
+          <h4 style="margin:0; color:#ffc53d">Ações (ENTÃO)</h4>
           <button @click="addEditThenAction" style="padding:6px 12px; border-radius:6px; border:none; background:#faad14; color:white; cursor:pointer; font-weight:600; font-size:12px">
-            ➕ Add Action
+            Adicionar ação
           </button>
         </div>
         
         <div v-for="(action, index) in editRule.entao" :key="index" style="margin-bottom:12px; padding:12px; background:rgba(250,173,20,0.1); border-radius:8px; border:1px solid rgba(250,173,20,0.3)">
-          <div style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; gap:8px; align-items:end">
+          <div style="display:grid; grid-template-columns: 1fr 1fr 100px 1fr 1fr auto; gap:8px; align-items:end">
             <div>
               <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Board:</label>
               <select 
@@ -678,7 +613,7 @@ onMounted(() => {
                 @change="fetchSensorsForBoard(action.id_device.replace('esp32_device_', ''))"
                 style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
               >
-                <option value="" disabled>Select board...</option>
+                <option value="" disabled>Selecione a placa...</option>
                 <option v-for="board in boards" :key="board.id" :value="`esp32_device_${board.deviceId}`">
                   {{ board.name }} (ID: {{ board.deviceId }})
                 </option>
@@ -691,23 +626,34 @@ onMounted(() => {
                 :disabled="!action.id_device"
                 style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
               >
-                <option value="" disabled>{{ action.id_device ? 'Select actuator...' : 'Select board first' }}</option>
+                <option value="" disabled>{{ action.id_device ? 'Selecione o atuador...' : 'Selecione a placa primeiro' }}</option>
                 <option 
                   v-for="actuator in getSensorsForDevice(action.id_device?.replace('esp32_device_', '')).filter(s => s.tipo === 4 || s.tipo === 5)"
                   :key="actuator.id" 
                   :value="actuator.id"
                 >
-                  {{ actuator.desc || `Actuator ${actuator.id}` }} (Type: {{ actuator.tipo === 4 ? 'Servo' : 'Relay' }})
+                  {{ actuator.desc || `Atuador ${actuator.id}` }} (Tipo: {{ actuator.tipo === 4 ? 'Servo' : 'Relé' }})
                 </option>
               </select>
             </div>
             <div>
-              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Value:</label>
-              <input v-model.number="action.valor" type="number" placeholder="1" style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
+              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Modo:</label>
+              <select v-model="action.modo" style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px">
+                <option value="set">Set</option>
+                <option value="toggle">Toggle</option>
+              </select>
+            </div>
+            <div v-if="action.modo === 'set'">
+              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Valor:</label>
+              <input v-model.number="action.valor" type="number" placeholder="1" style="width:50%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
+            </div>
+            <div v-else>
+              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Valor:</label>
+              <input value="Toggle" disabled style="width:50%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.2); color:#999; font-size:13px" />
             </div>
             <div>
-              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Duration (s):</label>
-              <input v-model.number="action.tempo" type="number" placeholder="0" min="0" title="0 = permanent, >0 = temporary (auto-revert to 0)" style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
+              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Duração (s):</label>
+              <input v-model.number="action.tempo" type="number" placeholder="0" min="0" title="0 = permanente, >0 = temporário (auto-reverter para 0)" style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
             </div>
             <button @click="removeEditThenAction(index)" style="padding:6px 10px; border-radius:4px; border:none; background:rgba(255,77,79,0.3); color:#ff7875; cursor:pointer; font-size:12px">🗑️</button>
           </div>
@@ -717,14 +663,14 @@ onMounted(() => {
       <!-- Else Actions -->
       <div style="margin-bottom:20px">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
-          <h4 style="margin:0; color:#ff85c0">Actions (ELSE) - Optional</h4>
+          <h4 style="margin:0; color:#ff85c0">Ações (SENÃO) - Opcional</h4>
           <button @click="addEditElseAction" style="padding:6px 12px; border-radius:6px; border:none; background:#eb2f96; color:white; cursor:pointer; font-weight:600; font-size:12px">
-            ➕ Add Action
+            Adicionar ação
           </button>
         </div>
         
         <div v-for="(action, index) in editRule.senao" :key="index" style="margin-bottom:12px; padding:12px; background:rgba(235,47,150,0.1); border-radius:8px; border:1px solid rgba(235,47,150,0.3)">
-          <div style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; gap:8px; align-items:end">
+          <div style="display:grid; grid-template-columns: 1fr 1fr 100px 1fr 1fr auto; gap:8px; align-items:end">
             <div>
               <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Board:</label>
               <select 
@@ -732,7 +678,7 @@ onMounted(() => {
                 @change="fetchSensorsForBoard(action.id_device.replace('esp32_device_', ''))"
                 style="width:100%; padding:6px; border-radius:4px; border:1px solid #eb2f96; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
               >
-                <option value="" disabled>Select board...</option>
+                <option value="" disabled>Selecione a placa...</option>
                 <option v-for="board in boards" :key="board.id" :value="`esp32_device_${board.deviceId}`">
                   {{ board.name }} (ID: {{ board.deviceId }})
                 </option>
@@ -745,34 +691,34 @@ onMounted(() => {
                 :disabled="!action.id_device"
                 style="width:100%; padding:6px; border-radius:4px; border:1px solid #eb2f96; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
               >
-                <option value="" disabled>{{ action.id_device ? 'Select actuator...' : 'Select board first' }}</option>
+                <option value="" disabled>{{ action.id_device ? 'Selecione o atuador...' : 'Selecione a placa primeiro' }}</option>
                 <option 
                   v-for="actuator in getSensorsForDevice(action.id_device?.replace('esp32_device_', '')).filter(s => s.tipo === 4 || s.tipo === 5)"
                   :key="actuator.id" 
                   :value="actuator.id"
                 >
-                  {{ actuator.desc || `Actuator ${actuator.id}` }} (Type: {{ actuator.tipo === 4 ? 'Servo' : 'Relay' }})
+                  {{ actuator.desc || `Atuador ${actuator.id}` }} (Tipo: {{ actuator.tipo === 4 ? 'Servo' : 'Relé' }})
                 </option>
               </select>
             </div>
             <div>
-              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Mode:</label>
+              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Modo:</label>
               <select v-model="action.modo" style="width:100%; padding:6px; border-radius:4px; border:1px solid #eb2f96; background:rgba(0,0,0,0.3); color:#fff; font-size:13px">
                 <option value="set">Set</option>
                 <option value="toggle">Toggle</option>
               </select>
             </div>
             <div v-if="action.modo === 'set'">
-              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Value:</label>
-              <input v-model.number="action.valor" type="number" placeholder="0" style="width:100%; padding:6px; border-radius:4px; border:1px solid #eb2f96; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
+              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Valor:</label>
+              <input v-model.number="action.valor" type="number" placeholder="0" style="width:50%; padding:6px; border-radius:4px; border:1px solid #eb2f96; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
             </div>
             <div v-else>
-              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Value:</label>
-              <input value="Toggle" disabled style="width:100%; padding:6px; border-radius:4px; border:1px solid #eb2f96; background:rgba(0,0,0,0.2); color:#999; font-size:13px" />
+              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Valor:</label>
+              <input value="Toggle" disabled style="width:50%; padding:6px; border-radius:4px; border:1px solid #eb2f96; background:rgba(0,0,0,0.2); color:#999; font-size:13px" />
             </div>
             <div>
-              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Duration (s):</label>
-              <input v-model.number="action.tempo" type="number" placeholder="0" min="0" title="0 = set and stay (no auto-revert), >0 = temporary (auto-revert to 0 after duration)" style="width:100%; padding:6px; border-radius:4px; border:1px solid #eb2f96; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
+              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Duração (s):</label>
+              <input v-model.number="action.tempo" type="number" placeholder="0" min="0" title="0 = permanente, >0 = temporário (auto-reverte para 0 após duração)" style="width:100%; padding:6px; border-radius:4px; border:1px solid #eb2f96; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
             </div>
             <button @click="removeEditElseAction(index)" style="padding:6px 10px; border-radius:4px; border:none; background:rgba(255,77,79,0.3); color:#ff7875; cursor:pointer; font-size:12px">🗑️</button>
           </div>
@@ -785,23 +731,23 @@ onMounted(() => {
           :disabled="!editRule.id_regra || editRule.condicao.length === 0 || editRule.entao.length === 0"
           style="padding:12px 24px; border-radius:8px; border:none; background:#52c41a; color:white; cursor:pointer; font-weight:600; font-size:14px; flex:1"
         >
-          ✅ Update Rule
+          Atualizar regra
         </button>
         <button 
           @click="cancelEdit"
           style="padding:12px 24px; border-radius:8px; border:none; background:rgba(255,77,79,0.3); color:#ff7875; cursor:pointer; font-weight:600; font-size:14px"
         >
-          ❌ Cancel
+          Cancelar
         </button>
       </div>
     </div>
 
     <!-- Add Rule Form -->
     <div v-if="showAddForm" style="margin-bottom:24px; padding:20px; background:rgba(24,144,255,0.1); border-radius:12px; border:1px solid rgba(24,144,255,0.3)">
-      <h3 style="margin-top:0; color:#91d5ff">Create New Rule</h3>
+      <h3 style="margin-top:0; color:#91d5ff">Criar nova regra</h3>
       
       <div style="margin-bottom:16px">
-        <label style="display:block; color:#91d5ff; font-weight:600; margin-bottom:8px">Rule ID:</label>
+        <label style="display:block; color:#91d5ff; font-weight:600; margin-bottom:8px">ID da Regra:</label>
         <input 
           v-model="newRule.id_regra" 
           placeholder="e.g., rule_temp_alert"
@@ -815,10 +761,10 @@ onMounted(() => {
           <h4 style="margin:0; color:#95de64">Conditions (IF)</h4>
           <div style="display:flex; gap:8px">
             <button @click="addCondition" style="padding:6px 12px; border-radius:6px; border:none; background:#52c41a; color:white; cursor:pointer; font-weight:600; font-size:12px">
-              ➕ Limit Condition
+              Condição de limite
             </button>
             <button @click="addPasswordCondition" style="padding:6px 12px; border-radius:6px; border:none; background:#52c41a; color:white; cursor:pointer; font-weight:600; font-size:12px">
-              🔑 Password Condition
+              Condição de senha
             </button>
           </div>
         </div>
@@ -827,13 +773,13 @@ onMounted(() => {
           <!-- Limit Condition -->
           <div v-if="cond.tipo === 'limite'" style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr auto; gap:8px; align-items:end">
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Board:</label>
+              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Placa:</label>
               <select 
                 v-model="cond.id_device" 
                 @change="fetchSensorsForBoard(cond.id_device.replace('esp32_device_', ''))"
                 style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
               >
-                <option value="" disabled>Select board...</option>
+                <option value="" disabled>Selecione a placa...</option>
                 <option v-for="board in boards" :key="board.id" :value="`esp32_device_${board.deviceId}`">
                   {{ board.name }} (ID: {{ board.deviceId }})
                 </option>
@@ -846,18 +792,18 @@ onMounted(() => {
                 :disabled="!cond.id_device"
                 style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
               >
-                <option value="" disabled>{{ cond.id_device ? 'Select sensor...' : 'Select board first' }}</option>
+                <option value="" disabled>{{ cond.id_device ? 'Selecione o sensor...' : 'Selecione a placa primeiro' }}</option>
                 <option 
                   v-for="sensor in getSensorsForDevice(cond.id_device?.replace('esp32_device_', ''))"
                   :key="sensor.id" 
                   :value="sensor.id"
                 >
-                  {{ sensor.desc || `Sensor ${sensor.id}` }} (Type: {{ sensor.tipo }})
+                  {{ sensor.desc || `Sensor ${sensor.id}` }} (Tipo: {{ sensor.tipo }})
                 </option>
               </select>
             </div>
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Field Name:</label>
+              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Nome do campo:</label>
               <input 
                 v-model="cond.medida" 
                 placeholder="e.g., x, y, bt, temperature"
@@ -865,7 +811,7 @@ onMounted(() => {
               />
             </div>
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Operator:</label>
+              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Operador:</label>
               <select v-model="cond.operador" style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px">
                 <option value=">">></option>
                 <option value=">=">>=</option>
@@ -876,7 +822,7 @@ onMounted(() => {
               </select>
             </div>
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Value:</label>
+              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Valor:</label>
               <input 
                 v-if="isStringSensor(cond.id_device, cond.id_sensor)"
                 v-model="cond.valor_limite" 
@@ -893,8 +839,8 @@ onMounted(() => {
               />
             </div>
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Time (s):</label>
-              <input v-model.number="cond.tempo" type="number" placeholder="5" min="0" title="0 = instant (no delay), >0 = condition must be true for this duration" style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
+              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Tempo (s):</label>
+              <input v-model.number="cond.tempo" type="number" placeholder="5" min="0" title="0 = instantâneo, >0 = condição deve ser verdadeira por essa duração" style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
             </div>
             <button @click="removeCondition(index)" style="padding:6px 10px; border-radius:4px; border:none; background:rgba(255,77,79,0.3); color:#ff7875; cursor:pointer; font-size:12px">🗑️</button>
           </div>
@@ -902,26 +848,26 @@ onMounted(() => {
           <!-- Password Condition -->
           <div v-else-if="cond.tipo === 'senha'" style="display:grid; grid-template-columns: 1fr 1fr 1fr auto; gap:8px; align-items:end">
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Board:</label>
+              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Placa:</label>
               <select 
                 v-model="cond.id_device" 
                 @change="fetchSensorsForBoard(cond.id_device.replace('esp32_device_', ''))"
                 style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
               >
-                <option value="" disabled>Select board...</option>
+                <option value="" disabled>Selecione a placa...</option>
                 <option v-for="board in boards" :key="board.id" :value="`esp32_device_${board.deviceId}`">
                   {{ board.name }} (ID: {{ board.deviceId }})
                 </option>
               </select>
             </div>
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Keypad Sensor:</label>
+              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Teclado:</label>
               <select 
                 v-model="cond.id_sensor" 
                 :disabled="!cond.id_device"
                 style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
               >
-                <option value="" disabled>{{ cond.id_device ? 'Select keypad...' : 'Select board first' }}</option>
+                <option value="" disabled>{{ cond.id_device ? 'Selecione o teclado...' : 'Selecione a placa primeiro' }}</option>
                 <option 
                   v-for="sensor in getSensorsForDevice(cond.id_device?.replace('esp32_device_', '')).filter(s => s.tipo === 7)"
                   :key="sensor.id" 
@@ -932,7 +878,7 @@ onMounted(() => {
               </select>
             </div>
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Password:</label>
+              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Senha:</label>
               <input v-model="cond.senha" placeholder="1234" style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
             </div>
             <button @click="removeCondition(index)" style="padding:6px 10px; border-radius:4px; border:none; background:rgba(255,77,79,0.3); color:#ff7875; cursor:pointer; font-size:12px">🗑️</button>
@@ -943,51 +889,62 @@ onMounted(() => {
       <!-- Then Actions -->
       <div style="margin-bottom:20px">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
-          <h4 style="margin:0; color:#ffc53d">Actions (THEN)</h4>
+          <h4 style="margin:0; color:#ffc53d">Ações (ENTÃO)</h4>
           <button @click="addThenAction" style="padding:6px 12px; border-radius:6px; border:none; background:#faad14; color:white; cursor:pointer; font-weight:600; font-size:12px">
-            ➕ Add Action
+            Adicionar ação
           </button>
         </div>
         
         <div v-for="(action, index) in newRule.entao" :key="index" style="margin-bottom:12px; padding:12px; background:rgba(250,173,20,0.1); border-radius:8px; border:1px solid rgba(250,173,20,0.3)">
           <div style="display:grid; grid-template-columns: 1fr 1fr 100px 1fr 1fr auto; gap:8px; align-items:end">
             <div>
-              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Board:</label>
+              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Placa:</label>
               <select 
                 v-model="action.id_device" 
                 @change="fetchSensorsForBoard(action.id_device.replace('esp32_device_', ''))"
                 style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
               >
-                <option value="" disabled>Select board...</option>
+                <option value="" disabled>Selecione a placa...</option>
                 <option v-for="board in boards" :key="board.id" :value="`esp32_device_${board.deviceId}`">
                   {{ board.name }} (ID: {{ board.deviceId }})
                 </option>
               </select>
             </div>
             <div>
-              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Actuator:</label>
+              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Atuador:</label>
               <select 
                 v-model="action.id_atuador" 
                 :disabled="!action.id_device"
                 style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
               >
-                <option value="" disabled>{{ action.id_device ? 'Select actuator...' : 'Select board first' }}</option>
+                <option value="" disabled>{{ action.id_device ? 'Selecione o atuador...' : 'Selecione a placa primeiro' }}</option>
                 <option 
                   v-for="actuator in getSensorsForDevice(action.id_device?.replace('esp32_device_', '')).filter(s => s.tipo === 4 || s.tipo === 5)"
                   :key="actuator.id" 
                   :value="actuator.id"
                 >
-                  {{ actuator.desc || `Actuator ${actuator.id}` }} (Type: {{ actuator.tipo === 4 ? 'Servo' : 'Relay' }})
+                  {{ actuator.desc || `Atuador ${actuator.id}` }} (Tipo: {{ actuator.tipo === 4 ? 'Servo' : 'Relé' }})
                 </option>
               </select>
             </div>
             <div>
+              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Modo:</label>
+              <select v-model="action.modo" style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px">
+                <option value="set">Set</option>
+                <option value="toggle">Toggle</option>
+              </select>
+            </div>
+            <div v-if="action.modo === 'set'">
               <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Value:</label>
               <input v-model.number="action.valor" type="number" placeholder="1" style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
             </div>
+            <div v-else>
+              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Value:</label>
+              <input value="Toggle" disabled style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.2); color:#999; font-size:13px" />
+            </div>
             <div>
-              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Duration (s):</label>
-              <input v-model.number="action.tempo" type="number" placeholder="0" min="0" title="0 = permanent, >0 = temporary (auto-revert to 0)" style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
+              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Duração (s):</label>
+              <input v-model.number="action.tempo" type="number" placeholder="0" min="0" title="0 = permanente, >0 = temporário (auto-reverter para 0)" style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
             </div>
             <button @click="removeThenAction(index)" style="padding:6px 10px; border-radius:4px; border:none; background:rgba(255,77,79,0.3); color:#ff7875; cursor:pointer; font-size:12px">🗑️</button>
           </div>
@@ -997,50 +954,50 @@ onMounted(() => {
       <!-- Else Actions -->
       <div style="margin-bottom:20px">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
-          <h4 style="margin:0; color:#ff85c0">Actions (ELSE) - Optional</h4>
+          <h4 style="margin:0; color:#ff85c0">Ações (SENÃO) - Opcional</h4>
           <button @click="addElseAction" style="padding:6px 12px; border-radius:6px; border:none; background:#eb2f96; color:white; cursor:pointer; font-weight:600; font-size:12px">
-            ➕ Add Action
+            Adicionar Ação
           </button>
         </div>
         
         <div v-for="(action, index) in newRule.senao" :key="index" style="margin-bottom:12px; padding:12px; background:rgba(235,47,150,0.1); border-radius:8px; border:1px solid rgba(235,47,150,0.3)">
           <div style="display:grid; grid-template-columns: 1fr 1fr 100px 1fr 1fr auto; gap:8px; align-items:end">
             <div>
-              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Board:</label>
+              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Placa:</label>
               <select 
                 v-model="action.id_device" 
                 @change="fetchSensorsForBoard(action.id_device.replace('esp32_device_', ''))"
                 style="width:100%; padding:6px; border-radius:4px; border:1px solid #eb2f96; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
               >
-                <option value="" disabled>Select board...</option>
+                <option value="" disabled>Selecione a placa...</option>
                 <option v-for="board in boards" :key="board.id" :value="`esp32_device_${board.deviceId}`">
                   {{ board.name }} (ID: {{ board.deviceId }})
                 </option>
               </select>
             </div>
             <div>
-              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Actuator:</label>
+              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Atuador:</label>
               <select 
                 v-model="action.id_atuador" 
                 :disabled="!action.id_device"
                 style="width:100%; padding:6px; border-radius:4px; border:1px solid #eb2f96; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
               >
-                <option value="" disabled>{{ action.id_device ? 'Select actuator...' : 'Select board first' }}</option>
+                <option value="" disabled>{{ action.id_device ? 'Selecione o atuador...' : 'Selecione a placa primeiro' }}</option>
                 <option 
                   v-for="actuator in getSensorsForDevice(action.id_device?.replace('esp32_device_', '')).filter(s => s.tipo === 4 || s.tipo === 5)"
                   :key="actuator.id" 
                   :value="actuator.id"
                 >
-                  {{ actuator.desc || `Actuator ${actuator.id}` }} (Type: {{ actuator.tipo === 4 ? 'Servo' : 'Relay' }})
+                  {{ actuator.desc || `Atuador ${actuator.id}` }} (Tipo: {{ actuator.tipo === 4 ? 'Servo' : 'Relé' }})
                 </option>
               </select>
             </div>
             <div>
-              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Value:</label>
+              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Valor:</label>
               <input v-model.number="action.valor" type="number" placeholder="0" style="width:100%; padding:6px; border-radius:4px; border:1px solid #eb2f96; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
             </div>
             <div>
-              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Duration (s):</label>
+              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Duração (s):</label>
               <input v-model.number="action.tempo" type="number" placeholder="0" min="0" title="0 = set and stay (no auto-revert), >0 = temporary (auto-revert to 0 after duration)" style="width:100%; padding:6px; border-radius:4px; border:1px solid #eb2f96; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
             </div>
             <button @click="removeElseAction(index)" style="padding:6px 10px; border-radius:4px; border:none; background:rgba(255,77,79,0.3); color:#ff7875; cursor:pointer; font-size:12px">🗑️</button>
@@ -1053,17 +1010,17 @@ onMounted(() => {
         :disabled="!newRule.id_regra || newRule.condicao.length === 0 || newRule.entao.length === 0"
         style="padding:12px 24px; border-radius:8px; border:none; background:#52c41a; color:white; cursor:pointer; font-weight:600; font-size:14px; width:100%"
       >
-        ✅ Create Rule
+        Criar regra
       </button>
     </div>
 
     <!-- Rules List -->
     <div v-if="loading">
-      <p>Loading rules...</p>
+      <p>Carregando regras...</p>
     </div>
 
     <div v-else-if="error">
-      <p style="color:#e53e3e">Error: {{ error }}</p>
+      <p style="color:#e53e3e">Erro: {{ error }}</p>
     </div>
 
     <div v-else-if="rules.length">
@@ -1077,8 +1034,8 @@ onMounted(() => {
               <div style="margin-bottom:12px">
                 <strong style="color:#95de64">IF:</strong>
                 <div v-for="(cond, idx) in rule.condicao" :key="idx" style="margin-left:20px; color:#bfbfbf; font-size:14px">
-                  <span v-if="cond.tipo === 'limite'">• Sensor {{ cond.id_sensor }} ({{ cond.id_device }}) field "{{ cond.medida }}" {{ cond.operador }} {{ cond.valor_limite }} for {{ cond.tempo }}s</span>
-                  <span v-else-if="cond.tipo === 'senha'">🔑 Keypad {{ cond.id_sensor }} ({{ cond.id_device }}) password: {{ cond.senha }}</span>
+                  <span v-if="cond.tipo === 'limite'">- Sensor {{ cond.id_sensor }} ({{ cond.id_device }}) campo "{{ cond.medida }}" {{ cond.operador }} {{ cond.valor_limite }} por {{ cond.tempo }}s</span>
+                  <span v-else-if="cond.tipo === 'senha'">- Keypad {{ cond.id_sensor }} ({{ cond.id_device }}) senha: {{ cond.senha }}</span>
                 </div>
               </div>
               
@@ -1086,7 +1043,7 @@ onMounted(() => {
               <div style="margin-bottom:12px">
                 <strong style="color:#ffc53d">THEN:</strong>
                 <div v-for="(action, idx) in rule.entao" :key="idx" style="margin-left:20px; color:#bfbfbf; font-size:14px">
-                  • Set actuator {{ action.id_atuador }} ({{ action.id_device }}) to {{ action.valor }}<span v-if="action.tempo && action.tempo > 0"> for {{ action.tempo }}s</span>
+                  - Atuador {{ action.id_atuador }} ({{ action.id_device }}) para {{ action.valor }}<span v-if="action.tempo && action.tempo > 0"> por {{ action.tempo }}s</span>
                 </div>
               </div>
               
@@ -1094,7 +1051,7 @@ onMounted(() => {
               <div v-if="rule.senao && rule.senao.length > 0">
                 <strong style="color:#ff85c0">ELSE:</strong>
                 <div v-for="(action, idx) in rule.senao" :key="idx" style="margin-left:20px; color:#bfbfbf; font-size:14px">
-                  • Set actuator {{ action.id_atuador }} ({{ action.id_device }}) to {{ action.valor }}<span v-if="action.tempo && action.tempo > 0"> for {{ action.tempo }}s</span>
+                  - Atuador {{ action.id_atuador }} ({{ action.id_device }}) para {{ action.valor }}<span v-if="action.tempo && action.tempo > 0"> por {{ action.tempo }}s</span>
                 </div>
               </div>
             </div>
@@ -1102,16 +1059,10 @@ onMounted(() => {
             <div style="display:flex; gap:8px">
               <button 
                 @click="startEdit(rule)"
-                style="padding:8px 16px; border-radius:8px; border:none; background:rgba(250,173,20,0.25); color:#ffc53d; cursor:pointer; font-weight:600; font-size:13px"
-              >
-                ✏️ Edit
-              </button>
+                style="padding:8px 16px; border-radius:8px; border:none; background:rgba(250,173,20,0.25); color:#ffc53d; cursor:pointer; font-weight:600; font-size:13px">Editar</button>
               <button 
                 @click="deleteRule(rule.id_regra)"
-                style="padding:8px 16px; border-radius:8px; border:none; background:rgba(255,77,79,0.25); color:#ff7875; cursor:pointer; font-weight:600; font-size:13px"
-              >
-                🗑️ Delete
-              </button>
+                style="padding:8px 16px; border-radius:8px; border:none; background:rgba(255,77,79,0.25); color:#ff7875; cursor:pointer; font-weight:600; font-size:13px">Excluir</button>
             </div>
           </div>
         </li>
@@ -1119,7 +1070,7 @@ onMounted(() => {
     </div>
 
     <div v-else>
-      <p>No automation rules configured. Click "New Rule" to create one.</p>
+      <p>Nenhuma regra configurada. Clique em "Nova Regra" para criar uma.</p>
     </div>
   </section>
 </template>

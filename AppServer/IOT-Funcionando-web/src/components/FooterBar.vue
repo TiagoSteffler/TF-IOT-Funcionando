@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 
 const props = defineProps({
   boards: { type: Array, required: true },
@@ -13,12 +13,51 @@ const selectBoard = (ev) => {
 }
 
 const currentBoard = computed(() => props.boards.find(b => b.id === props.currentBoardId))
+const deviceStatus = ref({ online: false, timeSinceLastSeen: null })
+let statusCheckInterval = null
+
+const checkDeviceStatus = async () => {
+  if (!currentBoard.value?.mac) {
+    deviceStatus.value = { online: false, timeSinceLastSeen: null }
+    return
+  }
+  
+  try {
+    const response = await fetch(`http://localhost:3001/api/devices/${currentBoard.value.mac}/status`)
+    if (response.ok) {
+      const data = await response.json()
+      deviceStatus.value = data
+    } else {
+      deviceStatus.value = { online: false, timeSinceLastSeen: null }
+    }
+  } catch (err) {
+    console.error('Error checking device status:', err)
+    deviceStatus.value = { online: false, timeSinceLastSeen: null }
+  }
+}
+
+const statusText = computed(() => {
+  if (!deviceStatus.value.timeSinceLastSeen) return 'Desconhecido'
+  const seconds = Math.floor(deviceStatus.value.timeSinceLastSeen / 1000)
+  return `${seconds}s atrás`
+})
+
+onMounted(() => {
+  checkDeviceStatus()
+  statusCheckInterval = setInterval(checkDeviceStatus, 5000) // Check every 5 seconds
+})
+
+onBeforeUnmount(() => {
+  if (statusCheckInterval) {
+    clearInterval(statusCheckInterval)
+  }
+})
 </script>
 
 <template>
   <footer>
     <div>
-      <label>Board:</label>
+      <label>Placa:</label>
       <select :value="currentBoardId" @change="selectBoard">
         <option v-for="b in boards" :key="b.id" :value="b.id">{{ b.name }}</option>
       </select>
@@ -28,6 +67,14 @@ const currentBoard = computed(() => props.boards.find(b => b.id === props.curren
       <p>MAC: {{ currentBoard.mac }}</p>
       <p>IP: {{ currentBoard.ip }}</p>
       <p>MQTT ID: {{ currentBoard.mqtt }}</p>
+    </div>
+
+    <div v-if="currentBoard" class="status-indicator">
+      <div class="status-row">
+        <div class="status-dot" :class="{ online: deviceStatus.online, offline: !deviceStatus.online }"></div>
+        <span class="status-text">{{ deviceStatus.online ? 'Online' : 'Offline' }}</span>
+      </div>
+      <p class="last-seen">{{ deviceStatus.online ? 'Heartbeat: ' + statusText : 'Sem heartbeat' }}</p>
     </div>
   </footer>
 </template>
@@ -102,6 +149,62 @@ p {
   font-size: 0.95rem;
   opacity: 0.9;
   text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+
+/* Status indicator */
+.status-indicator {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-shadow: 0 0 8px currentColor;
+  transition: all 0.3s ease;
+}
+
+.status-dot.online {
+  background: #52c41a;
+  color: #52c41a;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.status-dot.offline {
+  background: #ff4d4f;
+  color: #ff4d4f;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.1);
+  }
+}
+
+.status-text {
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+
+.last-seen {
+  font-size: 0.8rem;
+  opacity: 0.7;
+  margin: 0;
 }
 
 /* responsivo */

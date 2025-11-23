@@ -1,42 +1,15 @@
 {
-    "joy2": {
-        "id_regra": "joy2",
+    "leds": {
+        "id_regra": "leds",
         "condicao": [
             {
-                "id_device": "esp32_device_4",
-                "id_sensor": 2,
-                "last_state": false,
-                "medida": "x",
-                "operador": ">",
-                "tempo": 0,
-                "time_stamp": 1763554614.5878215,
-                "tipo": "limite",
-                "valor_limite": 2500
-            }
-        ],
-        "entao": [
-            {
-                "id_atuador": 1,
                 "id_device": "esp32_device_1",
-                "tempo": 3,
-                "valor": 1,
-                "modo": "set"
-            }
-        ],
-        "senao": [],
-        "_last_triggered_state": false
-    },
-    "enc1": {
-        "id_regra": "enc1",
-        "condicao": [
-            {
-                "id_device": "esp32_device_3",
-                "id_sensor": 2,
+                "id_sensor": 1,
                 "last_state": false,
-                "medida": "obstacle_detected",
+                "medida": "value",
                 "operador": "==",
-                "tempo": 5,
-                "time_stamp": 1763554693.0512478,
+                "tempo": 0,
+                "time_stamp": 1763915381.9501848,
                 "tipo": "limite",
                 "valor_limite": 1
             }
@@ -58,7 +31,6 @@
                 "tempo": 0,
                 "modo": "set"
             }
-        ],
-        "_last_triggered_state": true
+        ]
     }
 }

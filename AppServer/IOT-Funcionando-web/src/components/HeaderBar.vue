@@ -8,11 +8,9 @@ const addBoard = () => emit('add-board')
 
 const views = [
   { id: 'SettingsPanel', label: '⚙ CONFIGURAÇÃO' },
-  { id: 'SensorPanel', label: '☄ PAINEL' },
   { id: 'SensorList', label: '🗒 SENSORES' },
   { id: 'Rules', label: '⚲ REGRAS' },
-  { id: 'SensorReadings', label: '🕮 LEITURAS' },
-  { id: 'SensorSetup', label: '🛠 SETUP' }
+  { id: 'SensorReadings', label: '🕮 LEITURAS' }
 ]
 
 const selected = ref(views[0].id)
@@ -37,8 +35,8 @@ const changeView = (id) => {
       </button>
 
       <!-- Botões extras -->
-      <button class="action-btn" @click="addSensor">Add Sensor</button>
-      <button class="action-btn" @click="addBoard">Add Board</button>
+      <button class="action-btn" @click="addSensor">Adicionar Sensor</button>
+      <button class="action-btn" @click="addBoard">Adicionar Placa</button>
     </div>
   </header>
 </template>

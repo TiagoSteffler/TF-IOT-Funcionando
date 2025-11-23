@@ -593,6 +593,7 @@ int subscribeMQTTTopics() {
         topicsMQTT.println(mqttConfig.id + "/settings/sensors/get");
         topicsMQTT.println(mqttConfig.id + "/settings/sensors/set");
         topicsMQTT.println(mqttConfig.id + "/settings/sensors/remove");
+        topicsMQTT.println(mqttConfig.id + "/settings/device/reset");
         topicsMQTT.close();
         topicsMQTT = SPIFFS.open("/topics.txt", "r");
     }

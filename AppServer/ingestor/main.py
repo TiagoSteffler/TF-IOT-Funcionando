@@ -1,9 +1,13 @@
 import asyncio
 import aiomqtt
+import aiohttp
 from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
 from influxdb_client import Point
 import os
+import json
+import operator
 import time
+import traceback
 
 # --- Configurações (lidas das variáveis de ambiente) ---
 INFLUXDB_URL = os.getenv('INFLUXDB_URL')
@@ -39,6 +43,10 @@ STRING_SENSOR_TYPES = [7]  # TECLADO_4X4
 # --- Armazenamento de Regras (em memória) ---
 regras = {}
 RULES_CONFIG_FILE = 'rules_config.json' # <-- ADICIONE AQUI
+
+# --- Armazenamento de Configurações de Sensores (em memória) ---
+# Estrutura: {device_id: {sensor_id: {id, desc, tipo, pinos, atributo1, ...}}}
+sensor_configs = {}
 
 def salvar_regras_no_arquivo():
     """Salva o dicionário 'regras' atual no arquivo JSON."""
@@ -98,8 +106,10 @@ def cria_regra(regra):
             if c['tipo'] == 'limite':
                 c['last_state'] = False
                 c['time_stamp'] = time.time()
-            if c['tipo'] == 'senha':
-                c['buffer'] = ''
+            elif c['tipo'] == 'senha':
+                # Password conditions don't need time tracking, but initialize if needed
+                c['last_state'] = False
+                c['time_stamp'] = time.time()
         regras[id] = regra
         print(f"✅ Regra {id} criada com sucesso.")
         salvar_regras_no_arquivo()
@@ -120,8 +130,9 @@ def atualiza_regra(regra):
                 if c['tipo'] == 'limite':
                     c['last_state'] = False
                     c['time_stamp'] = time.time()
-                if c['tipo'] == 'senha':
-                    c['buffer'] = ''
+                elif c['tipo'] == 'senha':
+                    c['last_state'] = False
+                    c['time_stamp'] = time.time()
             print(f"✅ Regra {id} atualizada com sucesso.")
             salvar_regras_no_arquivo()
         else:
@@ -163,41 +174,122 @@ async def async_get_regra(client):
 
 # --- Funções de Execução de Regras (Assíncronas) ---
 
-async def async_executar_comando(client, id_device, id_atuador, valor):
-    """Publica um único comando para um atuador."""
+async def async_executar_comando(client, id_device, id_atuador, valor, modo='set'):
+    """Envia comando para atuador via API HTTP.
+    
+    Args:
+        modo: 'set' (default) = set to specified value, 'toggle' = flip current state
+    """
     try:
-        # IMPORTANTE: Novo padrão de tópico para comandos de atuador
-        topic = f"config/{id_device}/actuators/{id_atuador}/set"
-        payload = json.dumps({"value": valor})
-        await client.publish(topic, payload)
-        print(f"✅ Regra (Comando): Publicado em {topic} -> {payload}")
+        # Get cached sensor configuration if available
+        sensor_config = None
+        if id_device in sensor_configs and id_atuador in sensor_configs[id_device]:
+            # Use full cached config - EXACTLY like SensorList.vue
+            cached = sensor_configs[id_device][id_atuador]
+            
+            # Handle toggle mode
+            if modo == 'toggle':
+                current_value = cached.get("atributo1", 0)
+                # Toggle: 0 -> 1, any non-zero -> 0
+                valor = 0 if current_value else 1
+                print(f"🔄 Toggle mode: {current_value} -> {valor}")
+            
+            sensor_config = {
+                "id": cached.get("id", id_atuador),
+                "desc": cached.get("desc", ""),
+                "tipo": cached.get("tipo"),
+                "atributo1": valor,
+                "pinos": cached.get("pinos", [])
+            }
+        else:
+            # Minimal config if not cached
+            print(f"  ⚠️ Configuração do sensor {id_atuador} não encontrada no cache. Usando config mínima.")
+            if modo == 'toggle':
+                print(f"  ⚠️ Toggle mode requires cached state - defaulting to valor=1")
+                valor = 1
+            sensor_config = {
+                "id": id_atuador,
+                "atributo1": valor
+            }
+        
+        # Send HTTP POST to API server - EXACTLY like SensorList.vue
+        url = f"{API_SERVER_URL}/{id_device}/settings/sensors/set"
+        payload = {"sensors": [sensor_config]}
+        
+        print(f"📤 Regra (Comando): Enviando HTTP POST para {url}")
+        print(f"   Payload: {json.dumps(payload)}")
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload, headers={'Content-Type': 'application/json'}) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    print(f"❌ API Error: {response.status} - {error_text}")
+                else:
+                    print(f"✅ Regra (Comando): Atuador {id_atuador} atualizado para {valor}")
     except Exception as e:
         print(f"❌ Erro em 'async_executar_comando': {e}")
+        traceback.print_exc()
 
 async def async_executar_temporizado(client, id_device, id_atuador, tempo, valor):
-    """(Função ASSÍNCRONA) Executa um comando e o reverte após 'tempo'."""
+    """(Função ASSÍNCRONA) Executa um comando via HTTP e o reverte após 'tempo'."""
     try:
-        # Tópico para o atuador receber o comando
-        topic = f"config/{id_device}/actuators/{id_atuador}/set"
+        # Get cached sensor configuration if available
+        base_config = {}
+        if id_device in sensor_configs and id_atuador in sensor_configs[id_device]:
+            cached = sensor_configs[id_device][id_atuador]
+            base_config = {
+                "id": cached.get("id", id_atuador),
+                "desc": cached.get("desc", ""),
+                "tipo": cached.get("tipo"),
+                "pinos": cached.get("pinos", [])
+            }
+        else:
+            base_config = {"id": id_atuador}
         
-        # Publica o valor inicial
-        payload_on = json.dumps({"value": valor})
-        await client.publish(topic, payload_on)
-        print(f"✅ Regra (ON): Publicado em {topic} -> {payload_on}")
+        # Send HTTP POST to turn ON
+        url = f"{API_SERVER_URL}/{id_device}/settings/sensors/set"
+        sensor_config_on = {**base_config, "atributo1": valor}
+        payload_on = {"sensors": [sensor_config_on]}
+        
+        print(f"📤 Regra (ON): Enviando HTTP POST para {url}")
+        print(f"   Payload: {json.dumps(payload_on)}")
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload_on, headers={'Content-Type': 'application/json'}) as response:
+                if response.status == 200:
+                    print(f"✅ Regra (ON): Atuador {id_atuador} ativado com valor {valor}")
+                else:
+                    error_text = await response.text()
+                    print(f"❌ API Error (ON): {response.status} - {error_text}")
 
         # Aguarda o tempo definido
         await asyncio.sleep(tempo) 
         
-        # Publica o valor de reset (0)
-        payload_off = json.dumps({"value": 0})
-        await client.publish(topic, payload_off)
-        print(f"✅ Regra (OFF): Publicado em {topic} -> {payload_off}")
+        # Send HTTP POST to turn OFF
+        sensor_config_off = {**base_config, "atributo1": 0}
+        payload_off = {"sensors": [sensor_config_off]}
+        
+        print(f"📤 Regra (OFF): Enviando HTTP POST para {url}")
+        print(f"   Payload: {json.dumps(payload_off)}")
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload_off, headers={'Content-Type': 'application/json'}) as response:
+                if response.status == 200:
+                    print(f"✅ Regra (OFF): Atuador {id_atuador} desativado")
+                else:
+                    error_text = await response.text()
+                    print(f"❌ API Error (OFF): {response.status} - {error_text}")
 
     except Exception as e:
-        print(f"❌ Erro na task 'async_executar_temporizado': {e}") 
+        print(f"❌ Erro na task 'async_executar_temporizado': {e}")
+        traceback.print_exc() 
 
 async def async_verificar_regras(client, id_device, id_sensor, value):
-    """Verifica todas as regras com base em um novo dado de sensor."""
+    """Verifica todas as regras com base em um novo dado de sensor.
+    
+    Executa ações apenas em TRANSIÇÕES de estado (false→true ou true→false)
+    para evitar execuções repetidas enquanto a condição permanece verdadeira.
+    """
     
     for regra_id in list(regras.keys()):
         try:
@@ -214,27 +306,76 @@ async def async_verificar_regras(client, id_device, id_sensor, value):
                 # Verifica se a condição é para este sensor/device
                 if c.get('id_device') == id_device and c.get('id_sensor') == id_sensor:
                     condicao_atendida = True # Marcamos que este sensor é relevante para esta regra
-                    if c['tipo'] == 'limite':
-                        # Extrai o valor correto se for um dict (ex: DHT22)
+                    
+                    # Handle different condition types
+                    if c.get('tipo') == 'senha':
+                        # Password condition - compare entire input string
                         try:
-                            valor_sensor = float(value[c['medida']]) if isinstance(value, dict) else float(value)
-                        except (KeyError, ValueError, TypeError):
-                            print(f"  [Regra {regra_id}] Medida '{c.get('medida')}' não encontrada ou valor inválido em {value}")
+                            if isinstance(value, dict):
+                                # For keypad, the string is in value['input']
+                                valor_sensor = str(value.get('input', ''))
+                            else:
+                                valor_sensor = str(value)
+                            
+                            senha_esperada = c.get('senha', '')
+                            state = (valor_sensor == senha_esperada)
+                            
+                            print(f"  [Regra {regra_id}] Password check: '{valor_sensor}' == '{senha_esperada}' → {state}")
+                            
+                        except (KeyError, ValueError, TypeError) as e:
+                            print(f"  [Regra {regra_id}] Erro ao verificar senha em {value} ({type(value).__name__}): {e}")
+                            resposta_final_condicao = False
+                            break
+                    
+                    else:  # tipo == 'limite' or default
+                        # Limit condition - compare specific field value
+                        try:
+                            medida = c['medida']
+                            if isinstance(value, dict):
+                                # Dict access for named fields (e.g., {"x": 1951, "y": 1981, "bt": 0})
+                                valor_sensor = value[medida]
+                            else:
+                                # Single value (for actuators)
+                                valor_sensor = value
+                            
+                            # Determine if we need to compare as strings or numbers
+                            valor_limite = c['valor_limite']
+                            
+                            # If valor_limite is a string, compare as strings
+                            if isinstance(valor_limite, str):
+                                valor_sensor = str(valor_sensor)
+                            else:
+                                # Otherwise, compare as numbers
+                                valor_sensor = float(valor_sensor)
+                                valor_limite = float(valor_limite)
+                                
+                        except (KeyError, ValueError, TypeError) as e:
+                            print(f"  [Regra {regra_id}] Medida '{c.get('medida')}' não encontrada ou valor inválido em {value} ({type(value).__name__}): {e}")
                             resposta_final_condicao = False
                             break # Se uma condição falha, a resposta_final é Falsa
                         
-                        # Compara o valor
-                        state = operadores[c['operador']](valor_sensor, c['valor_limite'])
-                        
-                        if state != c.get('last_state', not state):
-                            c['last_state'] = state
-                            c['time_stamp'] = time.time()
-                        else:
-                            if state==False:
-                                condicao_atendida = False
-                                break
-                        
-                        if c['tempo'] == 0:
+                        # Compara o valor (works for both strings and numbers)
+                        state = operadores[c['operador']](valor_sensor, valor_limite)
+                    
+                    # Track state changes for transitions
+                    if state != c.get('last_state', not state):
+                        c['last_state'] = state
+                        c['time_stamp'] = time.time()
+                    else:
+                        if state==False:
+                            condicao_atendida = False
+                            break
+                    
+                    # Time tracking - only for limit conditions with tempo field
+                    if c.get('tipo') == 'senha':
+                        # Password conditions are instant - no time delay
+                        if not state:
+                            resposta_final_condicao = False
+                            break
+                    else:
+                        # Limit conditions may have time requirements
+                        tempo = c.get('tempo', 0)
+                        if tempo == 0:
                             # Regra sem tempo, só checa o estado
                             if not state:
                                 resposta_final_condicao = False
@@ -242,32 +383,33 @@ async def async_verificar_regras(client, id_device, id_sensor, value):
                         else:
                             # Regra com tempo
                             duracao_estado_atual = time.time() - c['time_stamp']
-                            if not (state and duracao_estado_atual >= c['tempo']):
+                            if not (state and duracao_estado_atual >= tempo):
                                 # Se estado for Falso, ou se for Verdadeiro mas tempo não atingido
                                 resposta_final_condicao = False
                                 break
-                                
-                    elif c['tipo'] == 'senha':
-                        if value == '*':
-                            c['buffer']=''
-                        else:
-                            c['buffer']=f"{c['buffer']}{value}"
-                        if len(c['buffer']) == len(c['senha']):
-                            if c['buffer'] == c['senha']:
-                                resposta_final_condicao = True
-                            else:
-                                resposta_final_condicao = False
-                        else:
-                            condicao_atendida = False
 
             # Se o sensor não era relevante para nenhuma condição da regra, não faz nada
             if not condicao_atendida:
                 continue
 
-            # 2. Executa Ações (ENTAO / SENAO)
+            # Verifica se houve mudança de estado da regra (transição)
+            last_rule_state = regra.get('_last_triggered_state', None)
+            state_changed = (last_rule_state != resposta_final_condicao)
+            
+            # Só executa ações se houve mudança de estado (debouncing)
+            if not state_changed:
+                # Estado não mudou - não executa ações novamente
+                continue
+            
+            # Atualiza o estado anterior da regra
+            regra['_last_triggered_state'] = resposta_final_condicao
+            
+            # 2. Executa Ações (ENTAO / SENAO) - APENAS EM TRANSIÇÕES
             if resposta_final_condicao:
+                print(f"  🔔 [Regra {regra_id}] Transição FALSE → TRUE: Executando bloco THEN")
                 # Executa o bloco "ENTAO"
                 for e in regra.get("entao", []):
+                    modo = e.get("modo", "set")  # Default to 'set' for backward compatibility
                     if e["tempo"] != 0:
                         # Dispara em background como uma nova Task
                         asyncio.create_task(async_executar_temporizado(
@@ -276,18 +418,20 @@ async def async_verificar_regras(client, id_device, id_sensor, value):
                     else:
                         # Executa comando simples
                         await async_executar_comando(
-                            client, e["id_device"], e["id_atuador"], e["valor"]
+                            client, e["id_device"], e["id_atuador"], e["valor"], modo
                         )
             else:
+                print(f"  🔔 [Regra {regra_id}] Transição TRUE → FALSE: Executando bloco ELSE")
                 # Executa o bloco "SENAO"
                 for e in regra.get("senao", []):
+                    modo = e.get("modo", "set")  # Default to 'set' for backward compatibility
                     if e["tempo"] != 0:
                         asyncio.create_task(async_executar_temporizado(
                             client, e["id_device"], e["id_atuador"], e["tempo"], e["valor"]
                         ))
                     else:
                         await async_executar_comando(
-                            client, e["id_device"], e["id_atuador"], e["valor"]
+                            client, e["id_device"], e["id_atuador"], e["valor"], modo
                         )
                         
         except Exception as e:
@@ -324,8 +468,10 @@ async def main():
             # Inscreve-se nos tópicos
             await client.subscribe(MQTT_SENSOR_DATA_TOPIC)
             await client.subscribe(MQTT_RULES_TOPIC)
+            await client.subscribe("+/settings/sensors/get/response")
             print(f"  Inscrito em: {MQTT_SENSOR_DATA_TOPIC}")
             print(f"  Inscrito em: {MQTT_RULES_TOPIC}")
+            print(f"  Inscrito em: +/settings/sensors/get/response")
 
             # Loop principal de mensagens
             async for message in client.messages:
@@ -355,27 +501,101 @@ async def main():
                             print(f"  📋 GET RULES: Retornando todas as regras")
                             await async_get_regra(client)
                     
-                    # 2. Tópicos de Dados de Sensores (+/sensors/+/data)
+                    # 2. Tópicos de Configuração de Sensores (+/settings/sensors/get/response)
+                    elif len(parts) >= 5 and parts[1] == 'settings' and parts[2] == 'sensors' and parts[3] == 'get' and parts[4] == 'response':
+                        device_id = parts[0]
+                        sensors_list = data.get('sensors', [])
+                        
+                        print(f"📥 Configuração de sensores recebida para {device_id}: {len(sensors_list)} sensores")
+                        
+                        # Cache all sensor configurations
+                        if device_id not in sensor_configs:
+                            sensor_configs[device_id] = {}
+                        
+                        for sensor in sensors_list:
+                            sensor_id = sensor.get('id')
+                            if sensor_id is not None:
+                                sensor_configs[device_id][sensor_id] = {
+                                    "id": sensor_id,
+                                    "desc": sensor.get('desc', ''),
+                                    "tipo": sensor.get('tipo', -1),
+                                    "pinos": sensor.get('pinos', []),
+                                    "atributo1": sensor.get('atributo1', 0)
+                                }
+                                print(f"  ✅ Cached config for sensor {sensor_id}: {sensor.get('desc', 'N/A')}")
+                    
+                    # 3. Tópicos de Dados de Sensores (+/sensors/+/data)
                     elif len(parts) >= 4 and parts[1] == 'sensors' and parts[3] == 'data':
                         device_id = data.get('device_id') or parts[0]
                         sensor_id = data.get('sensor_id') or data.get('id') or parts[2]
                         sensor_type_id = data.get('type') if data.get('type') is not None else data.get('tipo', -1)
                         sensor_type_name = SENSOR_TYPES.get(sensor_type_id, 'unknown')
                         
-                        # Actuators (RELE, SG_90) send atributo1 instead of values array
-                        # Types 4 (SG_90) and 5 (RELE) use atributo1 field
+                        # Actuators (RELE, SG_90) handle both formats:
+                        # - Old format: atributo1 (backwards compatibility)
+                        # - New format: values.state (RELE) or values.angle (SG_90)
+                        # Types 4 (SG_90) and 5 (RELE)
                         if sensor_type_id in [4, 5]:  # SG_90 or RELE
+                            # Try old format first (backwards compatibility)
                             value = data.get('atributo1')
+                            
+                            # Fall back to new format if old not present
                             if value is None:
-                                print(f"  ⚠️ Actuator message missing 'atributo1': {data}")
-                                continue
-                            print(f"  🎛️ Actuator {sensor_type_name}: atributo1={value}")
-                        else:
-                            # Sensors use 'values' field (check for None explicitly to allow 0)
-                            value = data.get('values')
-                            if value is None:
-                                print(f"  ⚠️ Mensagem sem campo 'values': {data}")
-                                continue
+                                values_dict = data.get('values')
+                                if isinstance(values_dict, dict):
+                                    # Type 5 (RELE) uses 'state', Type 4 (SG_90) uses 'angle'
+                                    if sensor_type_id == 5:
+                                        value = values_dict.get('state')
+                                    elif sensor_type_id == 4:
+                                        value = values_dict.get('angle')
+                                
+                                if value is None:
+                                    field_name = 'state' if sensor_type_id == 5 else 'angle'
+                                    print(f"  ⚠️ Actuator message missing both 'atributo1' and 'values.{field_name}': {data}")
+                                    continue
+                            
+                            field_name = 'state' if sensor_type_id == 5 else 'angle'
+                            print(f"  🎛️ Actuator {sensor_type_name}: {field_name}={value}")
+                            
+                            # Cache sensor configuration for later use in rules
+                            if device_id not in sensor_configs:
+                                sensor_configs[device_id] = {}
+                            sensor_configs[device_id][sensor_id] = {
+                                "id": sensor_id,
+                                "desc": data.get('desc', ''),
+                                "tipo": sensor_type_id,
+                                "pinos": data.get('pinos', []),
+                                "atributo1": value
+                            }
+                            
+                            # 2a. Verifica regras (não bloqueante) - actuators use single value
+                            await async_verificar_regras(client, device_id, sensor_id, value)
+                            
+                            # 2b. Salva no InfluxDB (não bloqueante) - actuators save single value
+                            measurement_name = f"sensor_{sensor_id}"
+                            point = Point(measurement_name) \
+                                .tag("device_id", device_id) \
+                                .tag("sensor_type", sensor_type_name) \
+                                .tag("sensor_type_id", str(sensor_type_id)) \
+                                .field("value", float(value)) \
+                                .time(time.time_ns(), write_precision='ns')
+                            
+                            try:
+                                await write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=point)
+                                print(f"  ✅ Salvo no InfluxDB: {measurement_name} ({sensor_type_name}) = {value} (Atuador)")
+                            except Exception as e:
+                                print(f"  [Influx] Erro ao salvar ponto: {e}")
+                            
+                            continue  # Skip the sensor dict processing below
+                        
+                        # Sensors now always send 'values' as a dictionary (e.g., {"x": 1951, "y": 1981, "bt": 0})
+                        value = data.get('values')
+                        if value is None:
+                            print(f"  ⚠️ Mensagem sem campo 'values': {data}")
+                            continue
+                        if not isinstance(value, dict):
+                            print(f"  ⚠️ Campo 'values' deve ser um dicionário, recebido: {type(value).__name__}")
+                            continue
                         
                         # 2a. Verifica regras (não bloqueante)
                         await async_verificar_regras(client, device_id, sensor_id, value)
@@ -384,89 +604,30 @@ async def main():
                         # Use sensor_id as measurement name (each sensor gets its own "table")
                         measurement_name = f"sensor_{sensor_id}"
                         
-                        # --- [KEYBOARD SPECIAL HANDLING FIRST] ---
-                        # Keyboards send arrays like ["1366479BBCCAD"], but we want to store as single string value
-                        if sensor_type_id in STRING_SENSOR_TYPES and isinstance(value, (list, tuple)) and len(value) > 0:
-                            # Extract first element from keyboard array
-                            value = value[0]
-                            print(f"  🎹 Teclado: array convertido para string '{value}'")
-                        
-                        if isinstance(value, (list, tuple)):
-                            # Array of values (e.g., joystick [x, y, button] or MPU6050 [ax, ay, az, gx, gy, gz, temp])
-                            points = []
-                            for idx, field_value in enumerate(value):
-                                try:
-                                    point = Point(measurement_name) \
-                                        .tag("device_id", device_id) \
-                                        .tag("sensor_type", sensor_type_name) \
-                                        .tag("sensor_type_id", str(sensor_type_id)) \
-                                        .tag("field_index", str(idx))
-                                    
-                                    # Check if sensor type should be saved as string
-                                    if sensor_type_id in STRING_SENSOR_TYPES:
-                                        point.field(f"value_{idx}", str(field_value))
-                                    else:
-                                        point.field(f"value_{idx}", float(field_value))
-                                    
-                                    point.time(time.time_ns(), write_precision='ns')
-                                    points.append(point)
-                                except (ValueError, TypeError) as e:
-                                    print(f"  [Influx] Ignorando valor inválido no índice {idx}: {field_value} ({e})")
-                            
-                            if points:
-                                await write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=points)
-                                print(f"  ✅ Salvo no InfluxDB: {measurement_name} ({sensor_type_name}) array com {len(points)} valores ({device_id})")
-                        
-                        elif isinstance(value, dict):
-                            # Múltiplos valores nomeados (ex: DHT22 {"temperature": 25.5, "humidity": 60})
-                            points = []
-                            for field_name, field_value in value.items():
-                                try:
-                                    point = Point(measurement_name) \
-                                        .tag("device_id", device_id) \
-                                        .tag("sensor_type", sensor_type_name) \
-                                        .tag("sensor_type_id", str(sensor_type_id)) \
-                                        .tag("field", field_name) \
-                                        .field(field_name, float(field_value)) \
-                                        .time(time.time_ns(), write_precision='ns')
-                                    points.append(point)
-                                except (ValueError, TypeError) as e:
-                                    print(f"  [Influx] Ignorando valor inválido: {field_name}={field_value} ({e})")
-                            
-                            if points:
-                                await write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=points)
-                                print(f"  ✅ Salvo no InfluxDB: {measurement_name} ({sensor_type_name}) dict com {len(points)} campos ({device_id})")
-                                
-                        else:
-                        # Valor único
-                            point = Point(measurement_name) \
-                                .tag("device_id", device_id) \
-                                .tag("sensor_type", sensor_type_name) \
-                                .tag("sensor_type_id", str(sensor_type_id))
-
-                            # --- [LÓGICA CORRIGIDA] ---
-                            # Verifica se o TIPO de sensor está na lista de strings
-                            if sensor_type_id in STRING_SENSOR_TYPES:
-                                # Se for um teclado, SEMPRE salva como string
-                                point.field("value", str(value))
-                                save_type = "String"
-                            else:
-                                # Para todos os outros sensores, tenta salvar como float
-                                save_type = "Float"
-                                try:
-                                    point.field("value", float(value))
-                                except (ValueError, TypeError):
-                                    # Se falhar (ex: "nan"), salva como string
-                                    point.field("value", str(value))
-                                    save_type = "String (fallback)"
-
-                            point.time(time.time_ns(), write_precision='ns')
-
+                        # Dictionary values with named fields (e.g., {"x": 1951, "y": 1981, "bt": 0})
+                        points = []
+                        for field_name, field_value in value.items():
                             try:
-                                await write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=point)
-                                print(f"  ✅ Salvo no InfluxDB: {measurement_name} ({sensor_type_name}) = {value} (Tipo: {save_type}) ({device_id})")
-                            except Exception as e:
-                                print(f"  [Influx] Erro ao salvar ponto: {e}")
+                                point = Point(measurement_name) \
+                                    .tag("device_id", device_id) \
+                                    .tag("sensor_type", sensor_type_name) \
+                                    .tag("sensor_type_id", str(sensor_type_id)) \
+                                    .tag("field", field_name)
+                                
+                                # Save as string for keyboard types, float for others
+                                if sensor_type_id in STRING_SENSOR_TYPES:
+                                    point.field(field_name, str(field_value))
+                                else:
+                                    point.field(field_name, float(field_value))
+                                
+                                point.time(time.time_ns(), write_precision='ns')
+                                points.append(point)
+                            except (ValueError, TypeError) as e:
+                                print(f"  [Influx] Ignorando valor inválido: {field_name}={field_value} ({e})")
+                        
+                        if points:
+                            await write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=points)
+                            print(f"  ✅ Salvo no InfluxDB: {measurement_name} ({sensor_type_name}) dict com {len(points)} campos ({device_id})")
                                 
                 except json.JSONDecodeError as e:
                     print(f"❌ Erro ao decodificar JSON: {e}")
