@@ -32,7 +32,7 @@ const startProvisioning = () => {
 const startPairing = async () => {
   // Validate required fields
   if (!wifiNetwork.value || !wifiPassword.value || !mqttBroker.value) {
-    alert('Please fill in all required fields (WiFi SSID, Password, and MQTT Broker IP)')
+    alert('Favor preencher todas as configurações antes de iniciar o emparelhamento.')
     return
   }
 
@@ -68,11 +68,11 @@ const startPairing = async () => {
 
     if (!resp.ok) {
       const text = await resp.text().catch(() => '');
-      throw new Error(`Pairing start failed: ${resp.status} ${text}`)
+      throw new Error(`Falha ao iniciar emparelhamento: ${resp.status} ${text}`)
     }
 
     const json = await resp.json()
-    console.log('🔵 Pairing mode activated on backend:', json)
+    console.log('Modo de emparelhamento ativado no backend:', json)
     pairingActive.value = true
 
     // Now waiting for ESP32 to:
@@ -86,9 +86,9 @@ const startPairing = async () => {
     pollForNewDevice()
 
   } catch (error) {
-    console.error('Failed to start pairing mode:', error)
-    const errorMsg = error.message || 'Unknown error'
-    alert(`Failed to start pairing mode: ${errorMsg}\n\nMake sure the backend server is running on port 3001.`)
+    console.error('Falha ao iniciar modo de emparelhamento:', error)
+    const errorMsg = error.message || 'Erro desconhecido'
+    alert(`Falha ao iniciar modo de emparelhamento: ${errorMsg}\n\nCertifique-se de que o servidor backend está rodando na porta 3001.`)
     step.value = 2
   }
 }
@@ -110,7 +110,7 @@ const pollForNewDevice = async () => {
         const ourDevice = devices.find(d => d.id === mqttDeviceId.value)
         
         if (ourDevice && ourDevice.status === 'online') {
-          console.log('✅ ESP32 connected!', ourDevice)
+          console.log('ESP32 conectado!', ourDevice)
           clearInterval(checkInterval)
           
           // Update board info with real data
@@ -137,14 +137,14 @@ const pollForNewDevice = async () => {
         }
       }
     } catch (err) {
-      console.error('Error polling devices:', err)
+      console.error('Erro ao consultar dispositivos:', err)
     }
     
     if (attempts >= maxAttempts) {
-      console.warn('⏱️ Pairing timeout - no device connected')
+      console.warn('⏱️ Tempo esgotado para emparelhamento - nenhum dispositivo conectado')
       clearInterval(checkInterval)
       await stopPairing()
-      alert('Pairing timeout. ESP32 did not connect within 2 minutes. Please try again.')
+      alert('Tempo esgotado para emparelhamento. ESP32 não se conectou dentro de 2 minutos. Por favor, tente novamente.')
       step.value = 2
     }
   }, 3000)
@@ -160,11 +160,11 @@ const stopPairing = async () => {
     })
     
     if (resp.ok) {
-      console.log('🔴 Pairing mode stopped')
+      console.log('Modo de emparelhamento desativado')
       pairingActive.value = false
     }
   } catch (error) {
-    console.error('Error stopping pairing:', error)
+    console.error('Erro ao desativar modo de emparelhamento:', error)
   }
 }
 
@@ -182,32 +182,32 @@ const cancel = async () => {
     <div v-if="step === 1">
 
       <div class="alert info">
-        <h3>Instructions</h3>
+        <h3>Instruções</h3>
         <ol>
-          <li>Power on your new ESP32 board</li>
-          <li>ESP32 will try to connect to open networks or hotspot with password "12345678"</li>
-          <li>Click "Start Setup" below</li>
-          <li>Fill in WiFi + MQTT settings</li>
-          <li>Click "Start Pairing" - backend will listen for ESP32</li>
-          <li>ESP32 will ping gateway and receive configuration</li>
-          <li>ESP32 restarts and connects to your WiFi</li>
-          <li>Wait for confirmation (device appears in list)</li>
+          <li>Ligue sua nova placa ESP32</li>
+          <li>ESP32 tentará se conectar a redes abertas ou hotspot com senha "12345678"</li>
+          <li>Clique em "Iniciar Configuração" abaixo</li>
+          <li>Preencha as configurações de WiFi + MQTT</li>
+          <li>Clique em "Iniciar Emparelhamento" - o backend ouvirá o ESP32</li>
+          <li>ESP32 enviará um ping para o gateway e receberá a configuração</li>
+          <li>ESP32 reiniciará e se conectará ao seu WiFi</li>
+          <li>Espere pela confirmação (dispositivo aparece na lista)</li>
         </ol>
       </div>
 
       <div class="field-block">
-        <label>Assigned Device ID</label>
+        <label>ID do dispositivo atribuído</label>
         <div class="static-text">{{ nextDeviceId }}</div>
       </div>
 
       <div class="field-block">
-        <label>Default MQTT ID</label>
+        <label>ID MQTT padrão</label>
         <div class="static-text">esp32_device_{{ nextDeviceId }}</div>
       </div>
 
       <div style="margin-top:20px">
-        <button @click="startProvisioning">Start Setup</button>
-        <button @click="cancel" class="secondary">Cancel</button>
+        <button @click="startProvisioning">Iniciar configuração</button>
+        <button @click="cancel" class="secondary">Cancelar</button>
       </div>
     </div>
 
@@ -215,42 +215,40 @@ const cancel = async () => {
     <div v-if="step === 2">
 
       <div class="alert warn">
-        <strong>⚠️ Make sure ESP32 is powered on and searching for networks</strong>
+        <strong>Certifique-se de que o ESP32 está ligado e procurando redes.</strong>
       </div>
 
-      <h3 class="group-title">Board Information</h3>
+      <h3 class="group-title">Informações da placa</h3>
 
       <div class="field-block">
-        <label>Board Name</label>
-        <input v-model="boardName" placeholder="e.g. ESP32 Living Room" />
+        <label>Nome da placa</label>
+        <input v-model="boardName" placeholder="e.g. ESP32 do galego" />
       </div>
 
-      <h3 class="group-title">MQTT Settings</h3>
-
+      <h3 class="group-title">Configurações MQTT</h3>
       <div class="field-block">
-        <label>Broker IP</label>
-        <input v-model="mqttBroker" placeholder="192.168.1.10 or mqtt.example.com" />
+        <label>Endereço IP do broker</label>
+        <input v-model="mqttBroker" placeholder="192.168.1.10 ou mqtt.example.com" />
       </div>
 
       <div class="field-block">
-        <label>Device ID (MQTT)</label>
+        <label>ID do dispositivo (MQTT)</label>
         <input v-model="mqttDeviceId" />
       </div>
 
-      <h3 class="group-title">WiFi Network Settings</h3>
-
+      <h3 class="group-title">Configurações da rede WiFi</h3>
       <div class="field-block">
-        <label>WiFi Network (SSID)</label>
-        <input v-model="wifiNetwork" placeholder="Your WiFi name" />
+        <label>Rede WiFi (SSID)</label>
+        <input v-model="wifiNetwork" placeholder="Nome do WiFi" />
       </div>
 
       <div class="field-block">
-        <label>Password</label>
-        <input v-model="wifiPassword" type="password" placeholder="WiFi password" />
+        <label>Senha</label>
+        <input v-model="wifiPassword" type="password" placeholder="Senha do WiFi" />
       </div>
 
       <div style="margin-top:20px">
-        <button @click="startPairing">Start Pairing</button>
+        <button @click="startPairing">Iniciar emparelhamento</button>
         <button @click="cancel" class="secondary">Cancel</button>
       </div>
     </div>
@@ -258,29 +256,28 @@ const cancel = async () => {
     <!-- STEP 3: WAITING FOR ESP32 -->
     <div v-if="step === 3" class="center-area">
       <div class="spinner"></div>
-      <h3>Waiting for ESP32…</h3>
-      <p>Pairing mode active. ESP32 should connect to the network and send a ping request.</p>
-      <p class="hint">This may take up to 2 minutes. Make sure ESP32 can reach the gateway.</p>
+      <h3>Aguardando ESP32…</h3>
+      <p>Modo de emparelhamento ativo. ESP32 deve se conectar à rede e enviar uma solicitação de ping.</p>
+      <p class="hint">Isso pode levar até 2 minutos. Certifique-se de que o ESP32 pode alcançar o gateway.</p>
     </div>
 
     <!-- STEP 4: SUCCESS -->
     <div v-if="step === 4">
 
       <div class="alert success">
-        <h3>✓ Configuration Sent Successfully!</h3>
-        <p>The ESP32 is restarting and connecting to your WiFi.</p>
+        <h3>Configuração enviada com sucesso!</h3>
+        <p>O ESP32 está reiniciando e conectando ao seu WiFi.</p>
       </div>
 
-      <h4 class="group-title">What Happened</h4>
-
+      <h4 class="group-title">O que aconteceu</h4>
       <ol class="final-steps">
-        <li>ESP32 connected to the network</li>
-        <li>ESP32 pinged the gateway and received configuration</li>
-        <li>ESP32 restarted and connected to your WiFi</li>
-        <li>ESP32 is now sending heartbeats via MQTT</li>
+        <li>ESP32 conectado à rede</li>
+        <li>ESP32 enviou ping para o gateway e recebeu configuração</li>
+        <li>ESP32 reiniciou e conectou ao seu WiFi</li>
+        <li>ESP32 agora está enviando sinais vitais via MQTT</li>
       </ol>
 
-      <p class="closing-hint">Closing this dialog shortly…</p>
+      <p class="closing-hint">Fechando este diálogo em breve…</p>
     </div>
   </section>
 </template>

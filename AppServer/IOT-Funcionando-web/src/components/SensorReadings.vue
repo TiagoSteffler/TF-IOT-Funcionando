@@ -5,7 +5,7 @@ import { Chart, registerables } from 'chart.js'
 Chart.register(...registerables)
 
 const props = defineProps({
-  selectedSensor: { type: Object, default: null }, // Changed from selectedPin to selectedSensor
+  selectedSensor: { type: Object, default: null },
   sensors: { type: Array, default: () => [] },
   deviceId: { type: Number, default: 1 }
 })
@@ -14,61 +14,79 @@ const loading = ref(false)
 const error = ref(null)
 const readingsData = ref(null)
 const chartRef = ref(null)
-const timeRange = ref('-5m') // Default: last 5 minutes
+const timeRange = ref('-5m') // ultimos 5 minutos padrao
 const autoRefresh = ref(false)
 const detailsOpen = ref(false)
 let chartInstance = null
 let refreshInterval = null
 
-// Fetch sensor readings from API server (JSON response)
+// Local sensor selection and available sensors
+const localSelectedSensor = ref(null)
+const availableSensors = ref([])
+
+// Fetch available sensors for the current device
+const fetchAvailableSensors = async () => {
+  try {
+    const mqttDeviceId = `esp32_device_${props.deviceId}`
+    const response = await fetch(`http://localhost:5000/${mqttDeviceId}/settings/sensors/get`)
+    if (response.ok) {
+      const data = await response.json()
+      availableSensors.value = data.sensors || []
+    }
+  } catch (err) {
+    console.error('Error fetching sensors:', err)
+  }
+}
+
+// busca leituras gravadas via api.py
 const fetchReadings = async (deviceId, sensorId) => {
-  console.log('🔍 fetchReadings called:', { deviceId, sensorId })
+  console.log('Buscando leituras para:', { deviceId, sensorId })
   loading.value = true
   error.value = null
   
   try {
     const mqttDeviceId = `esp32_device_${deviceId}`
     const url = `/${mqttDeviceId}/sensors/sensor_${sensorId}/read?start=${timeRange.value}`
-    console.log('📡 Fetching from:', url)
+    console.log('Buscando de ', url)
     const response = await fetch(url)
     if (!response.ok) {
-      throw new Error(`Failed to fetch readings: ${response.status} ${response.statusText}`)
+      throw new Error(`Falha ao buscar leituras: ${response.status} ${response.statusText}`)
     }
     
     const json = await response.json()
     readingsData.value = json
     
-    console.log('Fetched sensor data:', json.length, 'data points')
+    console.log('Dados do sensor buscados:', json.length, 'dados')
   } catch (err) {
     error.value = err.message
-    console.error('Error fetching sensor readings:', err)
+    console.error('Erro ao buscar leituras do sensor:', err)
   } finally {
     loading.value = false
   }
 }
 
 const refreshData = () => {
-  if (props.selectedSensor && props.deviceId) {
-    fetchReadings(props.deviceId, props.selectedSensor.id)
+  const sensor = localSelectedSensor.value || props.selectedSensor
+  if (sensor && props.deviceId) {
+    fetchReadings(props.deviceId, sensor.id)
   }
 }
 
 const toggleAutoRefresh = () => {
   autoRefresh.value = !autoRefresh.value
   if (autoRefresh.value) {
-    refreshData() // Immediate refresh
+    refreshData() // refresh
     if (refreshInterval) clearInterval(refreshInterval)
-    refreshInterval = setInterval(refreshData, 5000) // Refresh every 5 seconds
+    refreshInterval = setInterval(refreshData, 5000) // atualiza a cada 5 segundos (pisca a tela n tem jeito)
   } else {
     if (refreshInterval) {
       clearInterval(refreshInterval)
       refreshInterval = null
     }
     
-    // Re-enable keypad auto-refresh if viewing keypad sensor
+    // busca sempre valores do teclado
     if (props.selectedSensor && props.selectedSensor.tipo === 7) {
-      console.log('🔐 Re-enabling keypad auto-refresh')
-      refreshInterval = setInterval(refreshData, 3000)
+      refreshInterval = setInterval(refreshData, 5000)
     }
   }
 }
@@ -77,21 +95,21 @@ const stringDataPoints = ref([])
 
 const renderChart = (data) => {
   if (!chartRef.value) {
-    console.error('Canvas element not found!')
+    console.error('Gráfico não encontrado')
     return
   }
   
   if (chartInstance) {
-    console.log('Destroying previous chart instance')
+    console.log('Destruindo instância anterior do gráfico')
     chartInstance.destroy()
   }
   
-  console.log('Rendering chart with', data.length, 'data points')
+  console.log('Renderizando gráfico com', data.length, 'pontos')
   
   const ctx = chartRef.value.getContext('2d')
   
-  // Group data by timestamp and extract all fields
-  // Structure: { "timestamp": { "x": 1127, "y": 1971, "button": 0 } }
+  // extrari dados de dict (infelizmente nao terao todos o mesmo tempo pq o influx grava eles com milesimos de diferenca)
+  // estrutura teórica: { "timestamp": { "x": 1127, "y": 1971, "button": 0 } }
   const timeGrouped = {}
   const fieldNames = new Set()
   const stringData = []
@@ -104,10 +122,10 @@ const renderChart = (data) => {
       timeGrouped[timestamp] = {}
     }
     
-    // Merge all fields from this value dict
+    // busca todos os campos dict
     if (typeof valueDict === 'object' && valueDict !== null) {
       Object.entries(valueDict).forEach(([field, value]) => {
-        // Check if value is a string type (for keypad input like "123ABC" or "BABACA")
+        // Checagem para teclado(retorno string)
         if (typeof value === 'string') {
           stringData.push({
             time: timestamp,
@@ -115,43 +133,44 @@ const renderChart = (data) => {
             value: value
           })
         } else {
-          // Numeric value for chart
+          // Valor numérico para gráfico
           const parsed = parseFloat(value)
           timeGrouped[timestamp][field] = isNaN(parsed) ? 0 : parsed
           fieldNames.add(field)
         }
       })
     } else {
-      // Fallback for single numeric values (shouldn't happen with new API)
       const parsed = parseFloat(valueDict)
       timeGrouped[timestamp]['value'] = isNaN(parsed) ? 0 : parsed
       fieldNames.add('value')
     }
   })
   
-  // Store string data for display in table
-  stringDataPoints.value = stringData.reverse() // Most recent first
+  // Armazena dados de string para exibição em tabela
+  stringDataPoints.value = stringData.reverse() // ordem cronologica decrescente
   
-  // Convert to sorted array by timestamp
+  // Converte para array ordenado por timestamp
   const sortedTimestamps = Object.keys(timeGrouped).sort()
   
-  // Create labels from timestamps
+  // Cria labels a partir dos timestamps
   const labels = sortedTimestamps.map(timestamp => {
     const time = new Date(timestamp)
     return time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
   })
   
-  // Create datasets for each field
+  // cores para cada tipo de medida
   const colors = [
     { border: '#3182ce', background: 'rgba(49, 130, 206, 0.1)' },   // Blue
     { border: '#38a169', background: 'rgba(56, 161, 105, 0.1)' },   // Green
     { border: '#e53e3e', background: 'rgba(229, 62, 62, 0.1)' },    // Red
     { border: '#dd6b20', background: 'rgba(221, 107, 32, 0.1)' },   // Orange
     { border: '#9f7aea', background: 'rgba(159, 122, 234, 0.1)' },  // Purple
-    { border: '#ed64a6', background: 'rgba(237, 100, 166, 0.1)' }   // Pink
+    { border: '#ed64a6', background: 'rgba(237, 100, 166, 0.1)' },  // Pink
+    { border: '#00b5ad', background: 'rgba(0, 181, 173, 0.1)' },    // Teal
+    { border: '#d69e2e', background: 'rgba(214, 158, 46, 0.1)' }    // Yellow
   ]
   
-  // Detect binary/small-range fields (button, state, bt, etc.) for secondary axis
+  // pressupoe alguns tipos de medidas a usarem escala menor tipo botoes e cia.
   const binaryFields = new Set()
   fieldNames.forEach(fieldName => {
     const values = sortedTimestamps.map(ts => timeGrouped[ts][fieldName]).filter(v => v !== undefined)
@@ -159,7 +178,7 @@ const renderChart = (data) => {
     const max = Math.max(...values)
     const range = max - min
     
-    // If field has small range (0-1 or similar) or name suggests binary, use secondary axis
+    // Se o campo tem pequeno intervalo (0-1 ou similar) usa eixo secundario
     if (range <= 1 || fieldName.toLowerCase().match(/button|btn|bt|state|pressed|click/)) {
       binaryFields.add(fieldName)
     }
@@ -178,25 +197,25 @@ const renderChart = (data) => {
       }),
       borderColor: color.border,
       backgroundColor: color.background,
-      borderWidth: usesSecondaryAxis ? 3 : 2,  // Thicker lines for binary fields
+      borderWidth: usesSecondaryAxis ? 3 : 2,  // danonão grosso
       pointRadius: usesSecondaryAxis ? 4 : 3,
       pointHoverRadius: 5,
       fill: true,
       tension: 0.3,
       spanGaps: true,
-      yAxisID: usesSecondaryAxis ? 'y2' : 'y'  // Assign to secondary axis if binary
+      yAxisID: usesSecondaryAxis ? 'y2' : 'y'  // Atribui ao eixo secundário se binário
     }
   })
   
-  // Calculate min/max across all datasets for y-axis scaling
+  // Calcula min/max entre todos os datasets para escala do eixo y (quse certo que fica entre 0 e 4096 para ADC, 0-180 servo e 0-1 rele/botao)
   const allValues = datasets.flatMap(ds => ds.data.filter(v => v !== null))
   const minValue = Math.min(...allValues)
   const maxValue = Math.max(...allValues)
   const padding = (maxValue - minValue) * 0.1 || 1
   
-  const measurementName = data[0]?.measurement || 'Sensor Reading'
+  const measurementName = data[0]?.measurement || 'Leitura de sensor'
   
-  console.log('Chart data - fields:', Array.from(fieldNames).join(', '), 'timestamps:', labels.length, 'range:', minValue, '-', maxValue)
+  console.log('Campos do gráfico:', Array.from(fieldNames).join(', '), 'timestamps:', labels.length, 'range:', minValue, '-', maxValue)
   
   chartInstance = new Chart(ctx, {
     type: 'line',
@@ -261,17 +280,17 @@ const renderChart = (data) => {
           beginAtZero: true,
           min: -0.2,
           max: 1.2,
-          grid: { display: false },  // Don't overlap grid lines
+          grid: { display: false },  
           ticks: { 
             font: { size: 11 },
             stepSize: 1,
             callback: function(value) {
-              return value === 0 || value === 1 ? value : ''  // Only show 0 and 1
+              return value === 0 || value === 1 ? value : ''  // binario
             }
           },
           title: {
             display: binaryFields.size > 0,
-            text: 'Binary State',
+            text: 'Estado binário',
             font: { size: 12, weight: 'bold' }
           }
         }
@@ -282,30 +301,41 @@ const renderChart = (data) => {
     }
   })
   
-  console.log('Chart instance created successfully')
+  console.log('Gráfico renderizado com sucesso')
 }
 
-// Auto-fetch on mount if selectedSensor is available
-onMounted(() => {
-  console.log('📍 SensorReadings mounted with props:', { selectedSensor: props.selectedSensor, deviceId: props.deviceId })
+// Auto-fetch ao aparecer se acessado a partir do proprio sensor em SensorList.vue
+onMounted(async () => {
+  console.log('SensorReadings montado com props:', { selectedSensor: props.selectedSensor, deviceId: props.deviceId })
+  
+  // Fetch available sensors if no sensor is selected
+  if (!props.selectedSensor) {
+    await fetchAvailableSensors()
+  }
+  
   if (props.selectedSensor) {
+    localSelectedSensor.value = props.selectedSensor
     fetchReadings(props.deviceId, props.selectedSensor.id)
     
-    // For keypad sensors (type 7), always auto-refresh every 3 seconds
+    // sempre atualiza entrada de teclado a cada 5 segundos
     if (props.selectedSensor.tipo === 7 && !refreshInterval) {
-      console.log('🔐 Keypad sensor detected - enabling auto-refresh')
-      refreshInterval = setInterval(refreshData, 3000)
+      refreshInterval = setInterval(refreshData, 5000)
     }
   } else {
-    console.warn('⚠️ selectedSensor is null/undefined on mount')
+    console.warn('selectedSensor nulo')
   }
 })
 
-// Re-fetch if selectedSensor or deviceId changes
+// Re-fetch ao mudar sensorID ou deviceID
 watch(() => [props.selectedSensor, props.deviceId], ([newSensor, newDeviceId]) => {
-  console.log('🔄 Props changed:', { newSensor, newDeviceId })
+  console.log('Props modificados:', { newSensor, newDeviceId })
   
-  // Clear existing auto-refresh interval
+  // Update local selection if prop changes
+  if (newSensor) {
+    localSelectedSensor.value = newSensor
+  }
+  
+  // desliga auto refresh
   if (refreshInterval && !autoRefresh.value) {
     clearInterval(refreshInterval)
     refreshInterval = null
@@ -314,29 +344,46 @@ watch(() => [props.selectedSensor, props.deviceId], ([newSensor, newDeviceId]) =
   if (newSensor && newDeviceId) {
     fetchReadings(newDeviceId, newSensor.id)
     
-    // For keypad sensors (type 7), always auto-refresh every 3 seconds
+    // teclado
     if (newSensor.tipo === 7 && !refreshInterval && !autoRefresh.value) {
-      console.log('🔐 Keypad sensor detected - enabling auto-refresh')
-      refreshInterval = setInterval(refreshData, 3000)
+      refreshInterval = setInterval(refreshData, 5000)
     }
   }
 })
 
-// Re-fetch when time range changes
+// Watch local sensor selection changes
+watch(localSelectedSensor, (newSensor) => {
+  if (newSensor && props.deviceId) {
+    // Clear existing intervals
+    if (refreshInterval) {
+      clearInterval(refreshInterval)
+      refreshInterval = null
+    }
+    
+    fetchReadings(props.deviceId, newSensor.id)
+    
+    // Auto-refresh for keypad sensors
+    if (newSensor.tipo === 7) {
+      refreshInterval = setInterval(refreshData, 5000)
+    }
+  }
+})
+
+// Re-fetch quando acabar o tempo de refresh
 watch(timeRange, () => {
   refreshData()
 })
 
-// Watch for readingsData changes and render chart
+// atualiza grafico/tabela assim que receber resposta da api
 watch(readingsData, async (newData) => {
   if (newData && newData.length) {
-    // Extract string data immediately for table display
+    // teclado
     const stringData = []
     newData.forEach(row => {
       const valueDict = row.value
       if (typeof valueDict === 'object' && valueDict !== null) {
         Object.entries(valueDict).forEach(([field, value]) => {
-          // Check if value is a string type (for keypad input)
+          // teclado
           if (typeof value === 'string') {
             stringData.push({
               time: row.time,
@@ -347,23 +394,23 @@ watch(readingsData, async (newData) => {
         })
       }
     })
-    stringDataPoints.value = stringData.reverse() // Most recent first
+    stringDataPoints.value = stringData.reverse() // Mais recentes primeiro
     
-    // Wait for Vue to render the canvas element (since it's in v-else)
+    // Espera o Vue renderizar o elemento canvas (já que está em v-else)
     await nextTick()
-    // Additional small delay to ensure canvas is fully painted
+    // Pequeno atraso adicional pra garantir
     await new Promise(resolve => setTimeout(resolve, 100))
     
     if (chartRef.value) {
-      console.log('Rendering chart after data update')
+      console.log('recarregando gráfico...')
       renderChart(newData)
     } else {
-      console.log('No chart needed - string data only')
+      console.log('Dados de string')
     }
   }
 })
 
-// Cleanup on unmount
+// Cleanup no unmount
 onUnmounted(() => {
   if (refreshInterval) {
     clearInterval(refreshInterval)
@@ -378,20 +425,20 @@ onUnmounted(() => {
   <section>
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
       <h2 style="margin:0">
-        Sensor Readings
-        <span v-if="selectedSensor" style="font-size:0.9em; color:#718096; font-weight:normal">
-          - {{ selectedSensor.desc || `Sensor ${selectedSensor.id}` }} (ID: {{ selectedSensor.id }})
+       Leituras de sensores/atuadores
+        <span v-if="localSelectedSensor || selectedSensor" style="font-size:0.9em; color:#718096; font-weight:normal">
+          - {{ (localSelectedSensor || selectedSensor).desc || `Sensor ${(localSelectedSensor || selectedSensor).id}` }} (ID: {{ (localSelectedSensor || selectedSensor).id }})
         </span>
       </h2>
       
       <div style="display:flex; gap:8px; align-items:center">
         <select v-model="timeRange" style="padding:6px 12px; border-radius:4px; border:1px solid #cbd5e0">
-          <option value="-1m">Last 1 minute</option>
-          <option value="-5m">Last 5 minutes</option>
-          <option value="-15m">Last 15 minutes</option>
-          <option value="-1h">Last 1 hour</option>
-          <option value="-6h">Last 6 hours</option>
-          <option value="-24h">Last 24 hours</option>
+          <option value="-1m">Último minuto</option>
+          <option value="-5m">Últimos 5 minutos</option>
+          <option value="-15m">Últimos 15 minutos</option>
+          <option value="-1h">Última 1 hora</option>
+          <option value="-6h">Últimas 6 horas</option>
+          <option value="-24h">Últimas 24 horas</option>
         </select>
         
         <button 
@@ -414,25 +461,25 @@ onUnmounted(() => {
           :disabled="loading"
           style="padding:6px 12px; border-radius:4px; border:none; background-color:#3182ce; color:white; font-weight:bold; cursor:pointer"
         >
-          {{ loading ? '⏳ Loading...' : '🔄 Refresh' }}
+          {{ loading ? 'Carregando...' : 'Refresh' }}
         </button>
       </div>
     </div>
 
     <div v-if="loading">
-      <p>Loading sensor readings...</p>
+      <p>Carregando leituras...</p>
     </div>
 
     <div v-else-if="error">
-      <p style="color:#e53e3e">Error: {{ error }}</p>
-      <p style="font-size:12px; color:#666">Make sure the ingestor is running on localhost:5000</p>
+      <p style="color:#e53e3e">Erro: {{ error }}</p>
+      <p style="font-size:12px; color:#666">Certifique-se de que a API está rodando em localhost:5000.</p>
     </div>
 
     <div v-else-if="readingsData && readingsData.length">
       <div style="background:#f7fafc; padding:16px; border-radius:8px; margin-bottom:16px">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:12px; color:#2d3748">
-          <span><strong>Data Points:</strong> {{ readingsData.length }}</span>
-          <span><strong>Time:</strong> {{ new Date(readingsData[readingsData.length - 1]?.time).toLocaleTimeString() }}</span>
+          <span><strong>Pontos de dados:</strong> {{ readingsData.length }}</span>
+          <span><strong>Hora:</strong> {{ new Date(readingsData[readingsData.length - 1]?.time).toLocaleTimeString() }}</span>
           <div style="display:flex; gap:16px; flex-wrap:wrap">
             <span v-for="(val, key) in readingsData[readingsData.length - 1]?.value" :key="key">
               <strong>{{ key }}:</strong> {{ val }}
@@ -442,13 +489,13 @@ onUnmounted(() => {
       </div>
       
       <div v-if="stringDataPoints.length > 0" style="margin-bottom:16px; background:white; padding:16px; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.1)">
-        <h3 style="margin-top:0; margin-bottom:12px; color:#2d3748; font-size:16px">🔐 String Data (Keypad Inputs)</h3>
+        <h3 style="margin-top:0; margin-bottom:12px; color:#2d3748; font-size:16px">Entradas do teclado:</h3>
         <table style="width:100%; border-collapse:collapse">
           <thead>
             <tr style="background:#edf2f7; border-bottom:2px solid #cbd5e0">
               <th style="padding:10px; text-align:left; color:#2d3748; font-weight:bold">Timestamp</th>
-              <th style="padding:10px; text-align:left; color:#2d3748; font-weight:bold">Field</th>
-              <th style="padding:10px; text-align:left; color:#2d3748; font-weight:bold">Value</th>
+              <th style="padding:10px; text-align:left; color:#2d3748; font-weight:bold">Campo</th>
+              <th style="padding:10px; text-align:left; color:#2d3748; font-weight:bold">Valor</th>
             </tr>
           </thead>
           <tbody>
@@ -473,14 +520,38 @@ onUnmounted(() => {
 
       <details :open="detailsOpen" @toggle="detailsOpen = $event.target.open" style="margin-top:16px">
         <summary style="cursor:pointer; padding:8px; background:#edf2f7; border-radius:4px; font-weight:bold; color:#2d3748">
-          📊 Raw JSON Data ({{ readingsData.length }} rows)
+          Dados JSON raw: ({{ readingsData.length }} linhas)
         </summary>
         <pre style="max-height:300px; overflow:auto; background:#f7fafc; padding:12px; font-size:11px; border-radius:4px; margin-top:8px; border:1px solid #e2e8f0; color:#2d3748">{{ JSON.stringify(readingsData, null, 2) }}</pre>
       </details>
     </div>
 
     <div v-else>
-      <p>No readings available. Select a sensor to view data.</p>
+      <div v-if="!props.selectedSensor && !localSelectedSensor" style="background:#f7fafc; padding:24px; border-radius:8px; text-align:center">
+        <p style="margin-bottom:16px; color:#2d3748; font-size:16px">Nenhum sensor selecionado. Escolha um sensor para visualizar os dados:</p>
+        
+        <div v-if="availableSensors.length > 0" style="max-width:400px; margin:0 auto">
+          <select 
+            v-model="localSelectedSensor" 
+            style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e0; font-size:14px; background:white; color:#2d3748"
+          >
+            <option :value="null" disabled>-- Selecione um sensor --</option>
+            <option 
+              v-for="sensor in availableSensors" 
+              :key="sensor.id" 
+              :value="sensor"
+            >
+              {{ sensor.desc || `Sensor ${sensor.id}` }} (ID: {{ sensor.id }}, Tipo: {{ sensor.tipo }})
+            </option>
+          </select>
+        </div>
+        
+        <p v-else style="color:#718096; font-size:14px; margin-top:16px">
+          Nenhum sensor encontrado para este dispositivo.
+        </p>
+      </div>
+      
+      <p v-else>Nenhuma leitura disponível para o sensor selecionado.</p>
     </div>
   </section>
 </template>

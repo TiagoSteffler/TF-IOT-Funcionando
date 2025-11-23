@@ -35,8 +35,8 @@ const changeView = (id) => {
       </button>
 
       <!-- Botões extras -->
-      <button class="action-btn" @click="addSensor">Add Sensor</button>
-      <button class="action-btn" @click="addBoard">Add Board</button>
+      <button class="action-btn" @click="addSensor">Adicionar Sensor</button>
+      <button class="action-btn" @click="addBoard">Adicionar Placa</button>
     </div>
   </header>
 </template>

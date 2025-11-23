@@ -86,17 +86,45 @@ const onPinSelected = (pin) => {
   activeView.value = 'PinPreview'
 }
 
-// helper (same deterministic demo rules used elsewhere) to create a pin details object
+// helper to create a pin details object based on actual ESP32-S3 capabilities
 const getPinDetails = (pinNumber) => {
+  const pin = Number(pinNumber)
   const capabilities = []
-  if (pinNumber % 2 === 0) capabilities.push('PWM')
-  if (pinNumber % 3 === 0) capabilities.push('ADC')
-  if (pinNumber % 5 === 0) capabilities.push('I2C')
-  if (pinNumber % 7 === 0) capabilities.push('SPI')
-  if (pinNumber % 11 === 0) capabilities.push('Touch')
-  if (pinNumber === 1 || pinNumber === 2) capabilities.push('UART')
-  const usable = !(pinNumber % 13 === 0)
-  return { number: Number(pinNumber), capabilities, usable }
+  
+  // pinos touch
+  const touchPins = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+  if (touchPins.includes(pin)) capabilities.push('Touch')
+  
+  // pinos ADC
+  const adcPins = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+  if (adcPins.includes(pin)) capabilities.push('ADC')
+  
+  // pinos I2C
+  if (pin === 18) capabilities.push('I2C (SCL)')
+  if (pin === 17) capabilities.push('I2C (SDA)')
+  
+  // pinos USB OTG
+  if (pin === 19) capabilities.push('USB D+')
+  if (pin === 20) capabilities.push('USB D-')
+  
+  // pinos de comunicação UART
+  if (pin === 43) capabilities.push('UART (TX)')
+  if (pin === 44) capabilities.push('UART (RX)')
+  
+  // pinos de uso especial
+  if (pin === 2) capabilities.push('LED builtin')
+  if (pin === 48) capabilities.push('WS2812 builtin')
+  
+  // pinos restritos (reservados para funções do sistema/inacessíveis)
+  const unusablePins = [0, 35, 36, 37, 38, 39, 40, 45, 46]
+  const usable = !unusablePins.includes(pin)
+  
+  // Pinos para leitura de cartão SD
+  if (pin === 38 || pin === 39 || pin === 40) {
+    capabilities.push('SD (not recommended)')
+  }
+  
+  return { number: pin, capabilities, usable }
 }
 
 // Store selected sensor for editing
@@ -208,7 +236,7 @@ const handleEraseAll = () => {
 
         <component v-else
           :is="activeViewComponent"
-          v-bind="{ selectedPin, sensors, deviceId: currentDeviceId, selectedSensor }"
+          v-bind="{ selectedPin, sensors, deviceId: currentDeviceId, selectedSensor, boards }"
           @open-setup="(id) => handleOpenSetup(id)"
           @open-readings="(id) => handleOpenReadings(id)"
           @save-sensor="(s) => { saveSensor(s); onViewChange('PinPreview'); selectedSensor = null }"

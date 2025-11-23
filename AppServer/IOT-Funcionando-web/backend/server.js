@@ -41,12 +41,25 @@ mqttClient.on('message', (topic, message) => {
             const existingDevice = devices.get(mac);
             const wasInPairing = existingDevice && existingDevice.status === 'pairing';
 
+            // Only update to 'online' if:
+            // 1. Device was in pairing mode (completing pairing process), OR
+            // 2. Device already exists and is not in pairing mode, OR
+            // 3. Device doesn't exist yet
+            let newStatus = 'online';
+            
+            // If device doesn't exist yet and we're in pairing mode, don't auto-add it
+            // Only the /ping endpoint should add devices during pairing
+            if (!existingDevice && pairingMode) {
+                console.log(`[HEARTBEAT IGNORED] ${id} (${mac}) - ${ip} (pairing mode active, device not in cache)`);
+                return;
+            }
+
             devices.set(mac, {
                 id,
                 ip,
                 mac,
                 lastSeen: now,
-                status: 'online'
+                status: newStatus
             });
 
             if (wasInPairing) {

@@ -37,9 +37,9 @@ const checkDeviceStatus = async () => {
 }
 
 const statusText = computed(() => {
-  if (!deviceStatus.value.timeSinceLastSeen) return 'Unknown'
+  if (!deviceStatus.value.timeSinceLastSeen) return 'Desconhecido'
   const seconds = Math.floor(deviceStatus.value.timeSinceLastSeen / 1000)
-  return `${seconds}s ago`
+  return `${seconds}s atrás`
 })
 
 onMounted(() => {
@@ -57,7 +57,7 @@ onBeforeUnmount(() => {
 <template>
   <footer>
     <div>
-      <label>Board:</label>
+      <label>Placa:</label>
       <select :value="currentBoardId" @change="selectBoard">
         <option v-for="b in boards" :key="b.id" :value="b.id">{{ b.name }}</option>
       </select>
@@ -74,7 +74,7 @@ onBeforeUnmount(() => {
         <div class="status-dot" :class="{ online: deviceStatus.online, offline: !deviceStatus.online }"></div>
         <span class="status-text">{{ deviceStatus.online ? 'Online' : 'Offline' }}</span>
       </div>
-      <p class="last-seen">{{ deviceStatus.online ? 'Heartbeat: ' + statusText : 'No heartbeat' }}</p>
+      <p class="last-seen">{{ deviceStatus.online ? 'Heartbeat: ' + statusText : 'Sem heartbeat' }}</p>
     </div>
   </footer>
 </template>

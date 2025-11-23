@@ -1,33 +1,36 @@
 {
-    "senha BABACA": {
-        "id_regra": "senha BABACA",
+    "leds": {
+        "id_regra": "leds",
         "condicao": [
             {
-                "id_device": "esp32_device_2",
+                "id_device": "esp32_device_1",
                 "id_sensor": 1,
                 "last_state": false,
-                "senha": "BABACA",
-                "time_stamp": 1763867172.2287848,
-                "tipo": "senha"
+                "medida": "value",
+                "operador": "==",
+                "tempo": 0,
+                "time_stamp": 1763915381.9501848,
+                "tipo": "limite",
+                "valor_limite": 1
             }
         ],
         "entao": [
             {
                 "id_atuador": 1,
-                "id_device": "esp32_device_1",
+                "id_device": "esp32_device_2",
                 "modo": "set",
-                "tempo": 3,
+                "tempo": 0,
                 "valor": 1
-            },
-            {
-                "id_atuador": 3,
-                "id_device": "esp32_device_1",
-                "modo": "set",
-                "tempo": 3,
-                "valor": 50
             }
         ],
-        "senao": [],
-        "_last_triggered_state": true
+        "senao": [
+            {
+                "id_device": "esp32_device_2",
+                "id_atuador": 1,
+                "valor": 0,
+                "tempo": 0,
+                "modo": "set"
+            }
+        ]
     }
 }

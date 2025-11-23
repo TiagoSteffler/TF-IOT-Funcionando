@@ -29,16 +29,16 @@ const fetchWifiSettings = async (deviceId) => {
     const mqttId = `esp32_device_${deviceId}`
     const response = await fetch(`http://localhost:5000/${mqttId}/settings/wifi/get`)
     if (!response.ok) {
-      throw new Error(`Failed to fetch WiFi settings: ${response.status}`)
+      throw new Error(`Falha ao buscar configurações WiFi: ${response.status}`)
     }
     const data = await response.json()
     
     // Note: The API sends MQTT request, response comes via MQTT topic
     // For now, we'll show the request was sent
-    console.log('WiFi settings request sent:', data)
+    console.log('Solicitação de configurações WiFi enviada:', data)
   } catch (err) {
     error.value = err.message
-    console.error('Error fetching WiFi settings:', err)
+    console.error('Erro ao buscar configurações WiFi:', err)
   } finally {
     loading.value = false
   }
@@ -70,12 +70,12 @@ const saveSettings = async () => {
     })
     
     if (!response.ok) {
-      throw new Error(`Failed to save settings: ${response.status}`)
+      throw new Error(`Falha ao salvar configurações: ${response.status}`)
     }
     
     const result = await response.json()
-    successMessage.value = 'Settings sent to device successfully!'
-    console.log('Settings saved:', result)
+    successMessage.value = 'Configurações enviadas para o dispositivo com sucesso!'
+    console.log('Configurações salvas:', result)
     
     // Emit to parent for any additional handling
     emit('save-settings', {
@@ -96,20 +96,20 @@ const saveSettings = async () => {
     
   } catch (err) {
     error.value = err.message
-    console.error('Error saving settings:', err)
+    console.error('Erro ao salvar configurações:', err)
   } finally {
     saving.value = false
   }
 }
 
 const eraseNetwork = () => {
-  if (confirm('Erase network configuration? The ESP32 will lose WiFi connection settings.')) {
+  if (confirm('Apagar configuração de rede? O ESP32 perderá as configurações de conexão WiFi.')) {
     emit('erase-network')
   }
 }
 
 const eraseAll = async () => {
-  if (!confirm('Erase ALL configuration (network + sensors)? This will reset the ESP32 and cannot be undone.')) {
+  if (!confirm('Apagar TODAS as configurações (rede + sensores)? Isso irá resetar o ESP32 e não pode ser desfeito.')) {
     return
   }
   
@@ -129,12 +129,12 @@ const eraseAll = async () => {
     })
     
     if (!response.ok) {
-      throw new Error(`Failed to reset device: ${response.status}`)
+      throw new Error(`Falha ao resetar dispositivo: ${response.status}`)
     }
     
     const result = await response.json()
-    successMessage.value = 'Reset command sent! Device configuration cleared.'
-    console.log('Device reset:', result)
+    successMessage.value = 'Comando de reset enviado! Configuração do dispositivo apagada.'
+    console.log('Dispositivo resetado:', result)
     
     // Clear local form data
     mqttBroker.value = ''
@@ -152,7 +152,7 @@ const eraseAll = async () => {
     
   } catch (err) {
     error.value = err.message
-    console.error('Error resetting device:', err)
+    console.error('Erro ao resetar dispositivo:', err)
   } finally {
     saving.value = false
   }
@@ -161,14 +161,10 @@ const eraseAll = async () => {
 // Initialize device ID when component mounts or device changes
 onMounted(() => {
   mqttDeviceId.value = `esp32_device_${props.deviceId}`
-  // Optionally fetch current settings
-  // fetchWifiSettings(props.deviceId)
 })
 
 watch(() => props.deviceId, (newId) => {
   mqttDeviceId.value = `esp32_device_${newId}`
-  // Optionally fetch current settings
-  // fetchWifiSettings(newId)
 })
 
 // Clear InfluxDB data
@@ -176,10 +172,10 @@ const clearingInfluxDB = ref(false)
 
 const clearInfluxDB = async () => {
   const confirmed = confirm(
-    '⚠️ WARNING: This will DELETE ALL sensor data from InfluxDB!\n\n' +
-    'This includes historical readings from all sensors and boards.\n' +
-    'This action CANNOT be undone.\n\n' +
-    'Are you absolutely sure you want to continue?'
+    'AVISO: Isso irá APAGAR TODOS os dados dos sensores do InfluxDB!\n\n' +
+    'Isso inclui leituras históricas de todos os sensores e placas.\n' +
+    'Esta ação não poderá ser desfeita.\n\n' +
+    'Você tem certeza absoluta de que deseja continuar?'
   )
   
   if (!confirmed) {
@@ -188,9 +184,9 @@ const clearInfluxDB = async () => {
   
   // Double confirmation
   const doubleConfirm = confirm(
-    'FINAL CONFIRMATION\n\n' +
-    'All sensor data will be permanently deleted.\n\n' +
-    'Type YES in your mind and click OK to proceed, or Cancel to abort.'
+    'CONFIRMAÇÃO FINAL\n\n' +
+    'Todos os dados dos sensores serão permanentemente apagados.\n\n' +
+    'Clique em OK para continuar, ou Cancelar para abortar.'
   )
   
   if (!doubleConfirm) {
@@ -214,7 +210,7 @@ const clearInfluxDB = async () => {
     }
     
     const result = await response.json()
-    successMessage.value = '✅ InfluxDB cleared successfully! All sensor data has been deleted.'
+    successMessage.value = 'InfluxDB apagado com sucesso! Todos os dados dos sensores foram deletados.'
     console.log('InfluxDB cleared:', result)
     
     setTimeout(() => {
@@ -223,7 +219,7 @@ const clearInfluxDB = async () => {
     
   } catch (err) {
     error.value = err.message
-    console.error('Error clearing InfluxDB:', err)
+    console.error('Erro ao apagar InfluxDB:', err)
   } finally {
     clearingInfluxDB.value = false
   }
@@ -233,11 +229,11 @@ const clearInfluxDB = async () => {
 
 <template>
   <section>
-    <h2>ESP32 Settings</h2>
+    <h2>Configurações da placa</h2>
 
     <!-- Loading indicator -->
     <div v-if="loading" style="margin-top:12px; color:#666">
-      <p>Loading settings...</p>
+      <p>Carregando configurações...</p>
     </div>
 
     <!-- Success message -->
@@ -247,37 +243,37 @@ const clearInfluxDB = async () => {
 
     <!-- Error message -->
     <div v-if="error" style="margin-top:12px; padding:12px; background:#fff2f0; border-left:4px solid #ff4d4f; color:#ff4d4f">
-      Error: {{ error }}
+      Erro: {{ error }}
     </div>
 
     <div style="margin-top:12px">
-      <h3>MQTT Settings</h3>
+      <h3>Configurações MQTT</h3>
       <div class="field-block">
-        <label>Broker IP</label>
-        <input v-model="mqttBroker" placeholder="e.g. 192.168.1.10 or mqtt.example.com" :disabled="saving" />
+        <label>Endereço IP do broker:</label>
+        <input v-model="mqttBroker" placeholder="e.g. 192.168.1.10 ou mqtt.example.com" :disabled="saving" />
       </div>
       <div class="field-block">
-        <label>Device ID</label>
-        <input v-model="mqttDeviceId" placeholder="e.g. esp32_device_1" :disabled="saving" />
+        <label>ID do dispositivo:</label>
+        <input v-model="mqttDeviceId" placeholder="ex.: esp32_device_1" :disabled="saving" />
       </div>
     </div>
 
     <div style="margin-top:12px">
-      <h3>Network Settings</h3>
+      <h3>Configurações de rede</h3>
       <div class="field-block">
-        <label>WiFi Network (SSID)</label>
-        <input v-model="wifiNetwork" placeholder="WiFi network name" :disabled="saving" />
+        <label>Nome da rede (SSID):</label>
+        <input v-model="wifiNetwork" placeholder="Nome da rede WiFi" :disabled="saving" />
       </div>
 
       <div class="field-block">
-        <label>Password</label>
-        <input v-model="wifiPassword" type="password" placeholder="WiFi password" :disabled="saving" />
+        <label>Senha:</label>
+        <input v-model="wifiPassword" type="password" placeholder="Senha WiFi" :disabled="saving" />
       </div>
     </div>
 
     <div class="button-row">
       <button @click="saveSettings" :disabled="saving">
-        {{ saving ? 'Saving...' : 'Save Settings' }}
+        {{ saving ? 'Salvando...' : 'Salvar Configurações' }}
       </button>
     </div>
 
@@ -285,16 +281,16 @@ const clearInfluxDB = async () => {
       <h3>Danger Zone</h3>
 
       <div class="button-row">
-        <button class="danger-strong" @click="eraseNetwork">Erase Network Settings</button>
+        <button class="danger-strong" @click="eraseNetwork">Apagar configurações de conexão</button>
         <button class="danger-strong" @click="eraseAll" :disabled="saving">
-          {{ saving ? 'Resetting...' : 'Erase All Configuration' }}
+          {{ saving ? 'Resetando...' : 'Apagar todas as configurações' }}
         </button>
         <button class="danger-strong" @click="clearInfluxDB" :disabled="clearingInfluxDB">
-          {{ clearingInfluxDB ? 'Clearing Database...' : 'Clear All InfluxDB Data' }}
+          {{ clearingInfluxDB ? 'Apagando banco de dados...' : 'Apagar todos os dados do InfluxDB' }}
         </button>
       </div>
       <p style="font-size:12px; color:#ff7875; margin-top:8px">
-        ⚠️ This will permanently delete ALL sensor readings from InfluxDB. Use this to clean up after changing sensor configurations.
+        ⚠️ Isso irá apagar permanentemente TODAS as leituras dos sensores do InfluxDB. Use isso apenas em casos de desconfiguração de dispositivos previamente cadastrados.
       </p>
     </div>
   </section>

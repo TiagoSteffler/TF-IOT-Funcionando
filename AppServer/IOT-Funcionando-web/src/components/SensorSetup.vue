@@ -5,9 +5,13 @@ const props = defineProps({
   selectedPin: { type: Object, default: null },
   sensors: { type: Array, default: () => [] },
   deviceId: { type: Number, default: 1 },
-  selectedSensor: { type: Object, default: null }
+  selectedSensor: { type: Object, default: null },
+  boards: { type: Array, default: () => [] }
 })
 const emit = defineEmits(['save-sensor', 'delete-sensor'])
+
+// Target device for sensor configuration (defaults to current board)
+const targetDeviceId = ref(props.deviceId)
 
 // Sensor/Actuator types matching ESP32 enum tipo_sensor_t
 const SENSOR_TYPES = [
@@ -61,18 +65,18 @@ const SENSOR_PIN_CONFIG = {
   },
   4: { // SG_90 (Servo)
     pins: [
-      { label: 'PWM Control', type: 2, defaultPin: 13 }
+      { label: 'Controle PWM', type: 2, defaultPin: 13 }
     ]
   },
   5: { // RELE
     pins: [
-      { label: 'Control', type: 2, defaultPin: 23 }
+      { label: 'Controle', type: 2, defaultPin: 23 }
     ]
   },
   6: { // JOYSTICK
     pins: [
-      { label: 'Eixo X (Analog)', type: 3, defaultPin: 1 },
-      { label: 'Eixo Y (Analog)', type: 3, defaultPin: 2 },
+      { label: 'Eixo X (Analógico)', type: 3, defaultPin: 1 },
+      { label: 'Eixo Y (Analógico)', type: 3, defaultPin: 2 },
       { label: 'Botão (Digital)', type: 1, defaultPin: 3 }
     ]
   },
@@ -103,8 +107,7 @@ const SENSOR_PIN_CONFIG = {
 
 // Available ESP32-S3 pins (including all usable and some debug pins)
 const AVAILABLE_PINS = [
-  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
-  35, 36, 37, 38, 39, 40, 41, 42, 45, 46, 47, 48
+  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 38, 39, 40, 41, 42, 47, 48
 ]
 
 // Form state
@@ -133,13 +136,13 @@ const clearForm = () => {
 // Fetch current sensors to calculate next ID
 const fetchSensorsForId = async () => {
   try {
-    const mqttDeviceId = `esp32_device_${props.deviceId}`
+    const mqttDeviceId = `esp32_device_${targetDeviceId.value}`
     const response = await fetch(`http://localhost:5000/${mqttDeviceId}/settings/sensors/get`)
     if (response.ok) {
       const data = await response.json()
       const sensors = data.sensors || []
       
-      // Store existing sensor IDs for validation
+      // busca IDs de sensores se exsitirem
       existingSensorIds.value = sensors.map(s => s.id)
       
       if (sensors.length > 0) {
@@ -152,8 +155,8 @@ const fetchSensorsForId = async () => {
       }
     }
   } catch (err) {
-    console.error('Error fetching sensors for ID calculation:', err)
-    // Default to 1 if fetch fails
+    console.error('Não foi possível buscar IDs de sensores já adicionados:', err)
+    // defaulta pra 1
     nextAvailableId.value = 1
     sensorId.value = 1
     existingSensorIds.value = []
@@ -171,7 +174,7 @@ const requiredPins = computed(() => {
   return SENSOR_PIN_CONFIG[sensorType.value]?.pins || []
 })
 
-// Watch sensor type changes to initialize pins
+// modifica pinos para selecao quando o sensor mudar
 watch(sensorType, (newType) => {
   if (newType !== null) {
     const config = SENSOR_PIN_CONFIG[newType]
@@ -189,38 +192,38 @@ watch(sensorType, (newType) => {
   }
 })
 
-// Fetch sensors on mount to get correct next ID
+// busca proximo ID (quase certo que nao esta funcionando direito)
 onMounted(() => {
   if (!props.selectedSensor) {
     fetchSensorsForId()
   }
 })
 
-// Watch sensor ID changes to check for duplicates
+// compara se ID selecionado ja esta sendo usado (acho que não ta funcionando direito)
 watch(sensorId, (newId) => {
-  // Clear warning when editing existing sensor
+  // besteirinha pra limpar aviso
   if (props.selectedSensor && props.selectedSensor.id === newId) {
     warningMessage.value = null
     return
   }
   
-  // Check if ID already exists
+  // verifica se ID já esta em uso
   if (existingSensorIds.value.includes(newId)) {
-    warningMessage.value = `⚠️ Warning: Sensor ID ${newId} is already in use! Saving will overwrite the existing sensor configuration. Consider deleting the old sensor first or using ID ${nextAvailableId.value}.`
+    warningMessage.value = `⚠️ Aviso: O ID do sensor ${newId} já está em uso! Salvar irá sobrescrever a configuração existente. Considere deletar o sensor antigo primeiro ou usar o ID ${nextAvailableId.value}.`
   } else {
     warningMessage.value = null
   }
 })
 
-// Watch selectedSensor to populate form when editing
+// preenche opcoes baseado no sensor
 watch(() => props.selectedSensor, (sensor) => {
   if (sensor) {
-    // Populate form with existing sensor data
+    // preenche formulario com dados do sensor existente
     sensorId.value = sensor.id
     sensorType.value = sensor.tipo
     description.value = sensor.desc || ''
     
-    // Populate pins if available
+    // preenche pinos se disponíveis
     if (sensor.pinos && Array.isArray(sensor.pinos)) {
       const config = SENSOR_PIN_CONFIG[sensor.tipo]
       if (config) {
@@ -232,22 +235,29 @@ watch(() => props.selectedSensor, (sensor) => {
       }
     }
   } else {
-    // Clear form and fetch new ID when no sensor is selected
+    // Limpa formulário e busca novo ID quando nenhum sensor está selecionado
     clearForm()
     fetchSensorsForId()
   }
 }, { immediate: true })
 
+// observa mudanca de device para refazer busca de sensores
+watch(targetDeviceId, () => {
+  if (!props.selectedSensor) {
+    fetchSensorsForId()
+  }
+})
+
 const save = async () => {
   if (sensorType.value === null) {
-    error.value = 'Please select a sensor/actuator type'
+    error.value = 'Por favor, selecione um tipo de sensor/atuador'
     return
   }
   
-  // Validate all pins are selected
+  // valida se todos os pinos estão configurados
   const invalidPin = pins.value.find(p => !p.pino)
   if (invalidPin) {
-    error.value = 'Please configure all required pins'
+    error.value = 'Por favor, configure todos os pinos necessários'
     return
   }
   
@@ -256,9 +266,9 @@ const save = async () => {
   successMessage.value = null
   
   try {
-    const mqttDeviceId = `esp32_device_${props.deviceId}`
+    const mqttDeviceId = `esp32_device_${targetDeviceId.value}`
     
-    // Prepare sensor configuration payload matching ESP32 format
+    // Prepara payload de configuração do sensor no formato esperado pelo ESP32
     const sensorConfig = {
       id: sensorId.value,
       desc: description.value,
@@ -269,30 +279,30 @@ const save = async () => {
       }))
     }
     
-    // Add atributo1 for actuators (relay and servo)
+    // Adiciona atributo1 para atuadores (relé e servo) para definir estado inicial
     if (sensorType.value === 4) {
-      // Servo: default to 90 degrees (middle position)
+      // Servo: padrão para 90 graus (posição média)
       sensorConfig.atributo1 = 90
     } else if (sensorType.value === 5) {
-      // Relay: default to OFF (0)
+      // Relay: padrão para desligado (0)
       sensorConfig.atributo1 = 0
     }
     
     const payload = { sensors: [sensorConfig] }
     
     console.log('═══════════════════════════════════════════════════')
-    console.log('📤 SENDING TO ESP32 BOARD')
+    console.log(`Envio de dados para ${mqttDeviceId}`)
     console.log('═══════════════════════════════════════════════════')
-    console.log('Device ID:', mqttDeviceId)
+    console.log('ID do dispositivo:', mqttDeviceId)
     console.log('Endpoint:', `http://localhost:5000/${mqttDeviceId}/settings/sensors/set`)
-    console.log('Sensor Type:', selectedSensorInfo.value.name, `(tipo: ${sensorType.value})`)
-    console.log('Number of Pins:', pins.value.length)
+    console.log('Tipo de sensor:', selectedSensorInfo.value.name, `(tipo: ${sensorType.value})`)
+    console.log('Número de pinos:', pins.value.length)
     console.log('---------------------------------------------------')
-    console.log('Full Payload:')
+    console.log('Payload:')
     console.log(JSON.stringify(payload, null, 2))
     console.log('═══════════════════════════════════════════════════')
     
-    // Send sensor configuration via API
+    // envia pra api.py
     const response = await fetch(`http://localhost:5000/${mqttDeviceId}/settings/sensors/set`, {
       method: 'POST',
       headers: {
@@ -303,37 +313,36 @@ const save = async () => {
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      console.error('❌ ESP32 Response Error:', response.status, errorData)
-      throw new Error(errorData.message || `Failed to save sensor: ${response.status}`)
+      console.error('Erro na resposta do ESP32:', response.status, errorData)
+      throw new Error(errorData.message || `Falha ao salvar sensor: ${response.status}`)
     }
     
     const result = await response.json()
-    console.log('✅ ESP32 Response:', result)
+    console.log('Resposta do ESP32:', result)
     
-    // Check if result contains an error status (some APIs return 200 with error in body)
+    // verifica mensagem de resposta (é pra ter OK se ta tudo certo, depois da pra implementar eco na configuração completa)
     if (result.status === 'error' && !result.message?.includes('OK')) {
-      console.error('❌ ESP32 returned error:', result.message)
-      throw new Error(`ESP32 returned error: ${result.message}`)
+      console.error('ESP32 retornou erro:', result.message)
+      throw new Error(`ESP32 retornou erro: ${result.message}`)
     }
     
-    successMessage.value = `${selectedSensorInfo.value.name} configured successfully!`
-    console.log('Sensor saved:', result)
+    successMessage.value = `${selectedSensorInfo.value.name} configurado com sucesso!`
+    console.log('Sensor salvo:', result)
     
-    // Also emit to parent for local state management
+    // armazena localmente so pq sim
     emit('save-sensor', sensorConfig)
     
-    // Clear form after success and increment ID
+    // limpa tela
     setTimeout(() => {
       successMessage.value = null
       sensorType.value = null
       description.value = ''
       pins.value = []
-      // ID will auto-increment via the watcher when sensors prop updates
     }, 2000)
     
   } catch (err) {
     error.value = err.message
-    console.error('Error saving sensor:', err)
+    console.error('Erro ao salvar sensor:', err)
   } finally {
     saving.value = false
   }
@@ -347,17 +356,17 @@ const remove = async () => {
   successMessage.value = null
   
   try {
-    const mqttDeviceId = `esp32_device_${props.deviceId}`
+    const mqttDeviceId = `esp32_device_${targetDeviceId.value}`
     
     console.log('═══════════════════════════════════════════════════')
-    console.log('🗑️ REMOVING SENSOR FROM ESP32 BOARD')
+    console.log(`Remoção de sensor de ${mqttDeviceId}`)
     console.log('═══════════════════════════════════════════════════')
-    console.log('Device ID:', mqttDeviceId)
-    console.log('Sensor ID to Remove:', sensorId.value)
+    console.log('ID do dispositivo:', mqttDeviceId)
+    console.log('ID do sensor para remover:', sensorId.value)
     console.log('Endpoint:', `http://localhost:5000/${mqttDeviceId}/sensors/remove`)
     console.log('═══════════════════════════════════════════════════')
     
-    // Send remove request to API
+    // envia pedido de remoção para api.py
     const response = await fetch(`http://localhost:5000/${mqttDeviceId}/sensors/remove`, {
       method: 'POST',
       headers: {
@@ -370,19 +379,19 @@ const remove = async () => {
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      console.error('❌ Remove Sensor Error:', response.status, errorData)
-      throw new Error(errorData.message || `Failed to remove sensor: ${response.status}`)
+      console.error('Erro ao remover sensor:', response.status, errorData)
+      throw new Error(errorData.message || `Falha ao remover sensor: ${response.status}`)
     }
     
     const result = await response.json()
-    console.log('✅ Sensor Removed Successfully:', result)
-    successMessage.value = 'Sensor removed successfully!'
-    console.log('Sensor removed:', result)
+    console.log('✅ Sensor removido com sucesso:', result)
+    successMessage.value = 'Sensor removido com sucesso!'
+    console.log('Sensor removido:', result)
     
-    // Also emit to parent for local state management
+    // apagar localmente pq sim
     emit('delete-sensor', sensorId.value)
     
-    // Reset form
+    // limpa tela
     setTimeout(() => {
       successMessage.value = null
       sensorType.value = null
@@ -392,7 +401,7 @@ const remove = async () => {
     
   } catch (err) {
     error.value = err.message
-    console.error('Error removing sensor:', err)
+    console.error('Erro ao remover sensor:', err)
   } finally {
     saving.value = false
   }
@@ -402,36 +411,47 @@ const remove = async () => {
 
 <template>
   <section>
-    <h2>Sensor / Actuator Setup</h2>
+    <h2>Configuração de Sensor / Atuador</h2>
 
-    <!-- Success message -->
+    <!-- Seleção de Placa -->
+    <div v-if="boards.length > 1" class="field-block board-selector">
+      <label>Dispositivo-alvo:</label>
+      <select v-model.number="targetDeviceId" :disabled="saving">
+        <option v-for="board in boards" :key="board.id" :value="board.deviceId">
+          {{ board.name }} (ID: {{ board.deviceId }})
+        </option>
+      </select>
+      <div class="info-text">Selecione para qual placa adicionar este sensor.</div>
+    </div>
+
+    <!-- Mensagem de sucesso -->
     <div v-if="successMessage" class="alert alert-success">
       ✓ {{ successMessage }}
     </div>
 
-    <!-- Error message -->
+    <!-- Mensagem de erro -->
     <div v-if="error" class="alert alert-error">
       ✗ {{ error }}
     </div>
 
-    <!-- Warning message -->
+    <!-- Mensagem de aviso -->
     <div v-if="warningMessage" class="alert alert-warning">
       {{ warningMessage }}
     </div>
 
-    <!-- Sensor ID -->
+    <!-- ID do sensor -->
     <div class="field-block">
-      <label>Sensor ID</label>
+      <label>ID do sensor</label>
       <input v-model.number="sensorId" type="number" :disabled="saving" />
-      <div class="info-text">Unique identifier for this sensor/actuator</div>
+    <div class="info-text">Identificador único para este sensor/atuador (InfluxDB salvará esse sensor como sensor_{{ sensorId }}).</div>
     </div>
 
-    <!-- Sensor Type Selection -->
+    <!-- modelo de sensor ou atuador -->
     <div class="field-block">
-      <label>Sensor/Actuator Type</label>
+      <label>Tipo de Sensor/Atuador</label>
       <select v-model.number="sensorType" :disabled="saving">
-        <option :value="null">-- Select Type --</option>
-        <optgroup label="Sensors">
+        <option :value="null">-- Selecione modelo --</option>
+        <optgroup label="Sensores">
           <option 
             v-for="sensor in SENSOR_TYPES.filter(s => s.category === 'sensor')" 
             :key="sensor.value" 
@@ -440,7 +460,7 @@ const remove = async () => {
             {{ sensor.name }} - {{ sensor.desc }}
           </option>
         </optgroup>
-        <optgroup label="Actuators">
+        <optgroup label="Atuadores">
           <option 
             v-for="sensor in SENSOR_TYPES.filter(s => s.category === 'actuator')" 
             :key="sensor.value" 
@@ -452,17 +472,17 @@ const remove = async () => {
       </select>
     </div>
 
-    <!-- Description -->
+    <!-- Descrição -->
     <div v-if="sensorType !== null" class="field-block">
-      <label>Description</label>
-      <input v-model="description" :disabled="saving" placeholder="Optional description" />
+      <label>Descrição (label a ser salva)</label>
+      <input v-model="description" :disabled="saving" placeholder="Descrição opcional" />
     </div>
 
-    <!-- Dynamic Pin Configuration -->
+    <!-- Configuração dos pinos -->
     <div v-if="sensorType !== null && requiredPins.length > 0" class="pins-config">
-      <h3>Pin Configuration</h3>
+      <h3>Configuração do pinout</h3>
       <div class="info-box">
-        <strong>{{ selectedSensorInfo.name }}</strong> requires {{ requiredPins.length }} pin(s)
+        <strong>{{ selectedSensorInfo.name }}</strong> precisa utilizar {{ requiredPins.length }} pino(s)
       </div>
 
       <div v-for="(pinConfig, index) in pins" :key="index" class="pin-row">
@@ -472,10 +492,10 @@ const remove = async () => {
         </div>
         <div class="pin-select-wrapper">
           <label class="pin-type-label">
-            Pin Type: <strong>{{ PIN_TYPES.find(t => t.value === pinConfig.tipo)?.desc }}</strong>
+            Tipo: <strong>{{ PIN_TYPES.find(t => t.value === pinConfig.tipo)?.desc }}</strong>
           </label>
           <select v-model.number="pinConfig.pino" :disabled="saving">
-            <option :value="null">-- Select GPIO --</option>
+            <option :value="null">-- Selecione GPIO --</option>
             <option v-for="pin in AVAILABLE_PINS" :key="pin" :value="pin">
               GPIO {{ pin }}
             </option>
@@ -486,7 +506,7 @@ const remove = async () => {
 
     <!-- Preview -->
     <div v-if="sensorType !== null && pins.length > 0" class="preview-box">
-      <h4>Configuration Preview</h4>
+      <h4>Visualização do payload de configuração</h4>
       <pre>{{ JSON.stringify({
   id: sensorId,
   desc: description,
@@ -495,16 +515,16 @@ const remove = async () => {
 }, null, 2) }}</pre>
     </div>
 
-    <!-- Action Buttons -->
+    <!-- botoes -->
     <div class="button-group">
       <button @click="save" :disabled="saving || sensorType === null" class="btn-primary">
-        {{ saving ? 'Saving...' : 'Save Configuration' }}
+        {{ saving ? 'Salvando...' : 'Salvar configuração' }}
       </button>
       <button @click="clearForm" :disabled="saving" class="btn-secondary">
-        Clear
+        Cancelar
       </button>
       <button @click="remove" :disabled="saving" class="btn-danger">
-        Remove Sensor
+        Remover sensor
       </button>
     </div>
   </section>
@@ -614,6 +634,30 @@ input:disabled, select:disabled {
   font-size: 12px;
   color: #bfbfbf;
   margin-top: 6px;
+}
+
+/* Board Selector */
+.board-selector {
+  padding: 14px;
+  background: rgba(24, 144, 255, 0.08);
+  border: 1px solid rgba(24, 144, 255, 0.25);
+  border-radius: 14px;
+  margin-bottom: 20px;
+}
+
+.board-selector label {
+  color: #91d5ff;
+  font-size: 1rem;
+}
+
+.board-selector select {
+  background: rgba(0, 0, 0, 0.45);
+  border-color: rgba(24, 144, 255, 0.35);
+}
+
+.board-selector select:focus {
+  border-color: rgba(24, 144, 255, 0.7);
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
 }
 
 /* Pins Configuration */
