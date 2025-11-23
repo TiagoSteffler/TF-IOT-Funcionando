@@ -141,32 +141,49 @@ void sensorsVoid( void * pvParameters ){
         } else if (key == '#') {
           // Hashtag envia a string se não estiver vazia
           if (keyboardBuffer.length() > 0) {
-            // Cria payload JSON para o teclado
-            StaticJsonDocument<256> doc;
-            doc["device_id"] = mqttConfig.id;
-            doc["sensor_id"] = tecladoId;
-            doc["type"] = static_cast<int>(TECLADO_4X4);
-            JsonArray valores = doc.createNestedArray("values");
-            valores.add(keyboardBuffer);
-            
-            String payload;
-            serializeJson(doc, payload);
-            
-            String topic = mqttConfig.id + "/sensors/" + String(tecladoId) + "/data";
-            
-            if (MQTT.connected()) {
-              bool published = MQTT.publish(topic.c_str(), payload.c_str());
-              
-              if (published) {
-                Serial.print("[TECLADO] String publicada: ");
-                Serial.println(keyboardBuffer);
-              } else {
-                Serial.println("[TECLADO] Falha ao publicar");
+            // Find the keyboard sensor struct to build proper payload
+            Sensor* keypadSensor = nullptr;
+            for (size_t i = 0; i < sensores.size(); i++) {
+              if (sensores[i].id == tecladoId && sensores[i].tipo == TECLADO_4X4) {
+                keypadSensor = &sensores[i];
+                break;
               }
             }
             
-            // Limpa o buffer após enviar
-            keyboardBuffer = "";
+            if (keypadSensor != nullptr && keypadSensor->objeto != nullptr) {
+              // Store the buffer in the keypad object temporarily
+              KeyPad* kp = static_cast<KeyPad*>(keypadSensor->objeto);
+              // Use a temporary variable to store the string
+              // Since KeyPad stores last key, we need to build custom payload
+              
+              StaticJsonDocument<256> doc;
+              doc["device_id"] = mqttConfig.id;
+              doc["sensor_id"] = tecladoId;
+              doc["type"] = static_cast<int>(TECLADO_4X4);
+              JsonObject valores = doc.createNestedObject("values");
+              valores["input"] = keyboardBuffer;
+              
+              String payload;
+              serializeJson(doc, payload);
+              
+              String topic = mqttConfig.id + "/sensors/" + String(tecladoId) + "/data";
+              
+              if (MQTT.connected()) {
+                bool published = MQTT.publish(topic.c_str(), payload.c_str());
+                
+                if (published) {
+                  Serial.print("[TECLADO] String publicada: ");
+                  Serial.println(keyboardBuffer);
+                } else {
+                  Serial.println("[TECLADO] Falha ao publicar");
+                }
+              }
+              
+              // Limpa o buffer após enviar
+              keyboardBuffer = "";
+            } else {
+              Serial.println("[TECLADO] Erro: sensor nao encontrado");
+            }
           } else {
             Serial.println("[TECLADO] Buffer vazio, nada para enviar");
           }

@@ -106,6 +106,10 @@ def cria_regra(regra):
             if c['tipo'] == 'limite':
                 c['last_state'] = False
                 c['time_stamp'] = time.time()
+            elif c['tipo'] == 'senha':
+                # Password conditions don't need time tracking, but initialize if needed
+                c['last_state'] = False
+                c['time_stamp'] = time.time()
         regras[id] = regra
         print(f"✅ Regra {id} criada com sucesso.")
         salvar_regras_no_arquivo()
@@ -124,6 +128,9 @@ def atualiza_regra(regra):
             # Reinicializa o estado das condições
             for c in regras[id]['condicao']:
                 if c['tipo'] == 'limite':
+                    c['last_state'] = False
+                    c['time_stamp'] = time.time()
+                elif c['tipo'] == 'senha':
                     c['last_state'] = False
                     c['time_stamp'] = time.time()
             print(f"✅ Regra {id} atualizada com sucesso.")
@@ -299,35 +306,58 @@ async def async_verificar_regras(client, id_device, id_sensor, value):
                 # Verifica se a condição é para este sensor/device
                 if c.get('id_device') == id_device and c.get('id_sensor') == id_sensor:
                     condicao_atendida = True # Marcamos que este sensor é relevante para esta regra
-                    # Extrai o valor correto do dicionário usando a chave (medida)
-                    try:
-                        medida = c['medida']
-                        if isinstance(value, dict):
-                            # Dict access for named fields (e.g., {"x": 1951, "y": 1981, "bt": 0})
-                            valor_sensor = value[medida]
-                        else:
-                            # Single value (for actuators)
-                            valor_sensor = value
-                        
-                        # Determine if we need to compare as strings or numbers
-                        valor_limite = c['valor_limite']
-                        
-                        # If valor_limite is a string, compare as strings
-                        if isinstance(valor_limite, str):
-                            valor_sensor = str(valor_sensor)
-                        else:
-                            # Otherwise, compare as numbers
-                            valor_sensor = float(valor_sensor)
-                            valor_limite = float(valor_limite)
+                    
+                    # Handle different condition types
+                    if c.get('tipo') == 'senha':
+                        # Password condition - compare entire input string
+                        try:
+                            if isinstance(value, dict):
+                                # For keypad, the string is in value['input']
+                                valor_sensor = str(value.get('input', ''))
+                            else:
+                                valor_sensor = str(value)
                             
-                    except (KeyError, ValueError, TypeError) as e:
-                        print(f"  [Regra {regra_id}] Medida '{c.get('medida')}' não encontrada ou valor inválido em {value} ({type(value).__name__}): {e}")
-                        resposta_final_condicao = False
-                        break # Se uma condição falha, a resposta_final é Falsa
+                            senha_esperada = c.get('senha', '')
+                            state = (valor_sensor == senha_esperada)
+                            
+                            print(f"  [Regra {regra_id}] Password check: '{valor_sensor}' == '{senha_esperada}' → {state}")
+                            
+                        except (KeyError, ValueError, TypeError) as e:
+                            print(f"  [Regra {regra_id}] Erro ao verificar senha em {value} ({type(value).__name__}): {e}")
+                            resposta_final_condicao = False
+                            break
                     
-                    # Compara o valor (works for both strings and numbers)
-                    state = operadores[c['operador']](valor_sensor, valor_limite)
+                    else:  # tipo == 'limite' or default
+                        # Limit condition - compare specific field value
+                        try:
+                            medida = c['medida']
+                            if isinstance(value, dict):
+                                # Dict access for named fields (e.g., {"x": 1951, "y": 1981, "bt": 0})
+                                valor_sensor = value[medida]
+                            else:
+                                # Single value (for actuators)
+                                valor_sensor = value
+                            
+                            # Determine if we need to compare as strings or numbers
+                            valor_limite = c['valor_limite']
+                            
+                            # If valor_limite is a string, compare as strings
+                            if isinstance(valor_limite, str):
+                                valor_sensor = str(valor_sensor)
+                            else:
+                                # Otherwise, compare as numbers
+                                valor_sensor = float(valor_sensor)
+                                valor_limite = float(valor_limite)
+                                
+                        except (KeyError, ValueError, TypeError) as e:
+                            print(f"  [Regra {regra_id}] Medida '{c.get('medida')}' não encontrada ou valor inválido em {value} ({type(value).__name__}): {e}")
+                            resposta_final_condicao = False
+                            break # Se uma condição falha, a resposta_final é Falsa
+                        
+                        # Compara o valor (works for both strings and numbers)
+                        state = operadores[c['operador']](valor_sensor, valor_limite)
                     
+                    # Track state changes for transitions
                     if state != c.get('last_state', not state):
                         c['last_state'] = state
                         c['time_stamp'] = time.time()
@@ -336,18 +366,27 @@ async def async_verificar_regras(client, id_device, id_sensor, value):
                             condicao_atendida = False
                             break
                     
-                    if c['tempo'] == 0:
-                        # Regra sem tempo, só checa o estado
+                    # Time tracking - only for limit conditions with tempo field
+                    if c.get('tipo') == 'senha':
+                        # Password conditions are instant - no time delay
                         if not state:
                             resposta_final_condicao = False
                             break
                     else:
-                        # Regra com tempo
-                        duracao_estado_atual = time.time() - c['time_stamp']
-                        if not (state and duracao_estado_atual >= c['tempo']):
-                            # Se estado for Falso, ou se for Verdadeiro mas tempo não atingido
-                            resposta_final_condicao = False
-                            break
+                        # Limit conditions may have time requirements
+                        tempo = c.get('tempo', 0)
+                        if tempo == 0:
+                            # Regra sem tempo, só checa o estado
+                            if not state:
+                                resposta_final_condicao = False
+                                break
+                        else:
+                            # Regra com tempo
+                            duracao_estado_atual = time.time() - c['time_stamp']
+                            if not (state and duracao_estado_atual >= tempo):
+                                # Se estado for Falso, ou se for Verdadeiro mas tempo não atingido
+                                resposta_final_condicao = False
+                                break
 
             # Se o sensor não era relevante para nenhuma condição da regra, não faz nada
             if not condicao_atendida:
@@ -494,7 +533,7 @@ async def main():
                         
                         # Actuators (RELE, SG_90) handle both formats:
                         # - Old format: atributo1 (backwards compatibility)
-                        # - New format: values.state (current board firmware)
+                        # - New format: values.state (RELE) or values.angle (SG_90)
                         # Types 4 (SG_90) and 5 (RELE)
                         if sensor_type_id in [4, 5]:  # SG_90 or RELE
                             # Try old format first (backwards compatibility)
@@ -504,13 +543,19 @@ async def main():
                             if value is None:
                                 values_dict = data.get('values')
                                 if isinstance(values_dict, dict):
-                                    value = values_dict.get('state')
+                                    # Type 5 (RELE) uses 'state', Type 4 (SG_90) uses 'angle'
+                                    if sensor_type_id == 5:
+                                        value = values_dict.get('state')
+                                    elif sensor_type_id == 4:
+                                        value = values_dict.get('angle')
                                 
                                 if value is None:
-                                    print(f"  ⚠️ Actuator message missing both 'atributo1' and 'values.state': {data}")
+                                    field_name = 'state' if sensor_type_id == 5 else 'angle'
+                                    print(f"  ⚠️ Actuator message missing both 'atributo1' and 'values.{field_name}': {data}")
                                     continue
                             
-                            print(f"  🎛️ Actuator {sensor_type_name}: state={value}")
+                            field_name = 'state' if sensor_type_id == 5 else 'angle'
+                            print(f"  🎛️ Actuator {sensor_type_name}: {field_name}={value}")
                             
                             # Cache sensor configuration for later use in rules
                             if device_id not in sensor_configs:

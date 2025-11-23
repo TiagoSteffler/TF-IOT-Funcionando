@@ -252,25 +252,27 @@ const clearInfluxDB = async () => {
 
     <div style="margin-top:12px">
       <h3>MQTT Settings</h3>
-      <div style="margin-top:8px">
+      <div class="field-block">
         <label>Broker IP</label>
         <input v-model="mqttBroker" placeholder="e.g. 192.168.1.10 or mqtt.example.com" :disabled="saving" />
       </div>
-      <div style="margin-top:8px">
+      <div class="field-block">
         <label>Device ID</label>
         <input v-model="mqttDeviceId" placeholder="e.g. esp32_device_1" :disabled="saving" />
       </div>
     </div>
 
+    <div style="margin-top:12px">
+      <h3>Network Settings</h3>
+      <div class="field-block">
+        <label>WiFi Network (SSID)</label>
+        <input v-model="wifiNetwork" placeholder="WiFi network name" :disabled="saving" />
+      </div>
 
-    <div class="field-block">
-      <label>WiFi Network (SSID)</label>
-      <input v-model="wifiNetwork" placeholder="WiFi network name" :disabled="saving" />
-    </div>
-
-    <div class="field-block">
-      <label>Password</label>
-      <input v-model="wifiPassword" type="password" placeholder="WiFi password" :disabled="saving" />
+      <div class="field-block">
+        <label>Password</label>
+        <input v-model="wifiPassword" type="password" placeholder="WiFi password" :disabled="saving" />
+      </div>
     </div>
 
     <div class="button-row">
@@ -283,15 +285,12 @@ const clearInfluxDB = async () => {
       <h3>Danger Zone</h3>
 
       <div class="button-row">
-        <button class="danger" @click="eraseNetwork">Erase Network Settings</button>
+        <button class="danger-strong" @click="eraseNetwork">Erase Network Settings</button>
         <button class="danger-strong" @click="eraseAll" :disabled="saving">
           {{ saving ? 'Resetting...' : 'Erase All Configuration' }}
         </button>
-      </div>
-
-      <div class="button-row" style="margin-top:16px">
         <button class="danger-strong" @click="clearInfluxDB" :disabled="clearingInfluxDB">
-          {{ clearingInfluxDB ? 'Clearing Database...' : '🗑️ Clear All InfluxDB Data' }}
+          {{ clearingInfluxDB ? 'Clearing Database...' : 'Clear All InfluxDB Data' }}
         </button>
       </div>
       <p style="font-size:12px; color:#ff7875; margin-top:8px">

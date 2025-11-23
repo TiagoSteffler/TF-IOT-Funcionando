@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 
 const props = defineProps({
   sensors: { type: Array, default: () => [] },
@@ -126,7 +126,7 @@ const isActuator = (tipo) => {
 const fetchLastReading = async (sensorId) => {
   try {
     const mqttDeviceId = `esp32_device_${props.deviceId}`
-    const response = await fetch(`/${mqttDeviceId}/sensors/${sensorId}/read?start=-1h`)
+    const response = await fetch(`/${mqttDeviceId}/sensors/sensor_${sensorId}/read?start=-1h`)
     
     if (!response.ok) {
       console.warn(`Failed to fetch last reading for sensor ${sensorId}`)
@@ -136,7 +136,12 @@ const fetchLastReading = async (sensorId) => {
     const data = await response.json()
     if (data && data.length > 0) {
       // Get the most recent value
-      return data[data.length - 1].value
+      const lastValue = data[data.length - 1].value
+      // For keypad, extract the 'input' field from the value object
+      if (typeof lastValue === 'object' && lastValue.input !== undefined) {
+        return lastValue.input
+      }
+      return lastValue
     }
     return null
   } catch (err) {
@@ -144,6 +149,21 @@ const fetchLastReading = async (sensorId) => {
     return null
   }
 }
+
+// Periodically refresh keypad values
+const refreshKeypadValues = () => {
+  parsedSensors.value.forEach(sensor => {
+    if (sensor.tipo === 7) {
+      fetchLastReading(sensor.id).then(value => {
+        if (value !== null) {
+          keypadLastValues.value[sensor.id] = value
+        }
+      })
+    }
+  })
+}
+
+let keypadRefreshInterval = null
 
 // Publish actuator command via MQTT
 const setActuatorValue = async (sensor, value) => {
@@ -213,12 +233,21 @@ const setServoAngle = (sensor, angle) => {
   servoUpdateTimers.value[sensor.id] = setTimeout(() => {
     console.log(`🔄 Sending debounced servo update: ${angle}°`)
     setActuatorValue(sensor, parseInt(angle))
-  }, 1000)
+  }, 200)
 }
 
 // Auto-fetch on mount using device ID from props
 onMounted(() => {
   fetchDeviceSettings(props.deviceId)
+  // Refresh keypad values every 5 seconds
+  keypadRefreshInterval = setInterval(refreshKeypadValues, 5000)
+})
+
+// Cleanup on unmount
+onUnmounted(() => {
+  if (keypadRefreshInterval) {
+    clearInterval(keypadRefreshInterval)
+  }
 })
 
 // Re-fetch when device changes
@@ -347,7 +376,7 @@ watch(parsedSensors, (sensors) => {
               <!-- Keypad Last Value Display (Type 7) -->
               <div v-if="s.tipo === 7" style="margin-top:16px; padding:12px; background:rgba(250,173,20,0.1); border-radius:8px; border:1px solid rgba(250,173,20,0.3)">
                 <div style="display:flex; align-items:center; gap:12px">
-                  <span style="color:#ffc53d; font-weight:600; font-size:14px">🔐 Last Input:</span>
+                  <span style="color:#ffc53d; font-weight:600; font-size:14px">🔐 Last Password:</span>
                   <span style="color:#fff; font-size:14px; font-family:monospace; background:rgba(0,0,0,0.3); padding:6px 12px; border-radius:6px; border:1px solid rgba(250,173,20,0.4)">
                     {{ keypadLastValues[s.id] || '---' }}
                   </span>

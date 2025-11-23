@@ -118,6 +118,8 @@ const pins = ref([])
 const saving = ref(false)
 const error = ref(null)
 const successMessage = ref(null)
+const warningMessage = ref(null)
+const existingSensorIds = ref([])
 
 // Helper function to clear form - defined early so watchers can use it
 const clearForm = () => {
@@ -136,6 +138,10 @@ const fetchSensorsForId = async () => {
     if (response.ok) {
       const data = await response.json()
       const sensors = data.sensors || []
+      
+      // Store existing sensor IDs for validation
+      existingSensorIds.value = sensors.map(s => s.id)
+      
       if (sensors.length > 0) {
         const maxId = Math.max(...sensors.map(s => s.id || 0))
         nextAvailableId.value = maxId + 1
@@ -150,6 +156,7 @@ const fetchSensorsForId = async () => {
     // Default to 1 if fetch fails
     nextAvailableId.value = 1
     sensorId.value = 1
+    existingSensorIds.value = []
   }
 }
 
@@ -186,6 +193,22 @@ watch(sensorType, (newType) => {
 onMounted(() => {
   if (!props.selectedSensor) {
     fetchSensorsForId()
+  }
+})
+
+// Watch sensor ID changes to check for duplicates
+watch(sensorId, (newId) => {
+  // Clear warning when editing existing sensor
+  if (props.selectedSensor && props.selectedSensor.id === newId) {
+    warningMessage.value = null
+    return
+  }
+  
+  // Check if ID already exists
+  if (existingSensorIds.value.includes(newId)) {
+    warningMessage.value = `⚠️ Warning: Sensor ID ${newId} is already in use! Saving will overwrite the existing sensor configuration. Consider deleting the old sensor first or using ID ${nextAvailableId.value}.`
+  } else {
+    warningMessage.value = null
   }
 })
 
@@ -285,7 +308,14 @@ const save = async () => {
     }
     
     const result = await response.json()
-    console.log('✅ ESP32 Response Success:', result)
+    console.log('✅ ESP32 Response:', result)
+    
+    // Check if result contains an error status (some APIs return 200 with error in body)
+    if (result.status === 'error' && !result.message?.includes('OK')) {
+      console.error('❌ ESP32 returned error:', result.message)
+      throw new Error(`ESP32 returned error: ${result.message}`)
+    }
+    
     successMessage.value = `${selectedSensorInfo.value.name} configured successfully!`
     console.log('Sensor saved:', result)
     
@@ -382,6 +412,11 @@ const remove = async () => {
     <!-- Error message -->
     <div v-if="error" class="alert alert-error">
       ✗ {{ error }}
+    </div>
+
+    <!-- Warning message -->
+    <div v-if="warningMessage" class="alert alert-warning">
+      {{ warningMessage }}
     </div>
 
     <!-- Sensor ID -->
@@ -531,6 +566,12 @@ h4 {
   background: rgba(255, 77, 79, 0.15);
   border-left: 4px solid #ff4d4f;
   color: #ff7875;
+}
+
+.alert-warning {
+  background: rgba(250, 173, 20, 0.15);
+  border-left: 4px solid #ffa940;
+  color: #ffc53d;
 }
 
 /* Field blocks */

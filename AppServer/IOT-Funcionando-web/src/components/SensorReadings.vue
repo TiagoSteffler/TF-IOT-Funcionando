@@ -16,6 +16,7 @@ const readingsData = ref(null)
 const chartRef = ref(null)
 const timeRange = ref('-5m') // Default: last 5 minutes
 const autoRefresh = ref(false)
+const detailsOpen = ref(false)
 let chartInstance = null
 let refreshInterval = null
 
@@ -56,14 +57,23 @@ const toggleAutoRefresh = () => {
   autoRefresh.value = !autoRefresh.value
   if (autoRefresh.value) {
     refreshData() // Immediate refresh
+    if (refreshInterval) clearInterval(refreshInterval)
     refreshInterval = setInterval(refreshData, 5000) // Refresh every 5 seconds
   } else {
     if (refreshInterval) {
       clearInterval(refreshInterval)
       refreshInterval = null
     }
+    
+    // Re-enable keypad auto-refresh if viewing keypad sensor
+    if (props.selectedSensor && props.selectedSensor.tipo === 7) {
+      console.log('🔐 Re-enabling keypad auto-refresh')
+      refreshInterval = setInterval(refreshData, 3000)
+    }
   }
 }
+
+const stringDataPoints = ref([])
 
 const renderChart = (data) => {
   if (!chartRef.value) {
@@ -84,6 +94,7 @@ const renderChart = (data) => {
   // Structure: { "timestamp": { "x": 1127, "y": 1971, "button": 0 } }
   const timeGrouped = {}
   const fieldNames = new Set()
+  const stringData = []
   
   data.forEach(row => {
     const timestamp = row.time
@@ -96,15 +107,30 @@ const renderChart = (data) => {
     // Merge all fields from this value dict
     if (typeof valueDict === 'object' && valueDict !== null) {
       Object.entries(valueDict).forEach(([field, value]) => {
-        timeGrouped[timestamp][field] = parseFloat(value) || 0
-        fieldNames.add(field)
+        // Check if value is a string type (for keypad input like "123ABC" or "BABACA")
+        if (typeof value === 'string') {
+          stringData.push({
+            time: timestamp,
+            field: field,
+            value: value
+          })
+        } else {
+          // Numeric value for chart
+          const parsed = parseFloat(value)
+          timeGrouped[timestamp][field] = isNaN(parsed) ? 0 : parsed
+          fieldNames.add(field)
+        }
       })
     } else {
       // Fallback for single numeric values (shouldn't happen with new API)
-      timeGrouped[timestamp]['value'] = parseFloat(valueDict) || 0
+      const parsed = parseFloat(valueDict)
+      timeGrouped[timestamp]['value'] = isNaN(parsed) ? 0 : parsed
       fieldNames.add('value')
     }
   })
+  
+  // Store string data for display in table
+  stringDataPoints.value = stringData.reverse() // Most recent first
   
   // Convert to sorted array by timestamp
   const sortedTimestamps = Object.keys(timeGrouped).sort()
@@ -125,20 +151,40 @@ const renderChart = (data) => {
     { border: '#ed64a6', background: 'rgba(237, 100, 166, 0.1)' }   // Pink
   ]
   
+  // Detect binary/small-range fields (button, state, bt, etc.) for secondary axis
+  const binaryFields = new Set()
+  fieldNames.forEach(fieldName => {
+    const values = sortedTimestamps.map(ts => timeGrouped[ts][fieldName]).filter(v => v !== undefined)
+    const min = Math.min(...values)
+    const max = Math.max(...values)
+    const range = max - min
+    
+    // If field has small range (0-1 or similar) or name suggests binary, use secondary axis
+    if (range <= 1 || fieldName.toLowerCase().match(/button|btn|bt|state|pressed|click/)) {
+      binaryFields.add(fieldName)
+    }
+  })
+  
   const datasets = Array.from(fieldNames).map((fieldName, index) => {
     const colorIndex = index % colors.length
     const color = colors[colorIndex]
+    const usesSecondaryAxis = binaryFields.has(fieldName)
     
     return {
       label: fieldName,
-      data: sortedTimestamps.map(timestamp => timeGrouped[timestamp][fieldName] || null),
+      data: sortedTimestamps.map(timestamp => {
+        const value = timeGrouped[timestamp][fieldName]
+        return value !== undefined ? value : null
+      }),
       borderColor: color.border,
       backgroundColor: color.background,
-      borderWidth: 2,
-      pointRadius: 3,
+      borderWidth: usesSecondaryAxis ? 3 : 2,  // Thicker lines for binary fields
+      pointRadius: usesSecondaryAxis ? 4 : 3,
       pointHoverRadius: 5,
       fill: true,
-      tension: 0.3
+      tension: 0.3,
+      spanGaps: true,
+      yAxisID: usesSecondaryAxis ? 'y2' : 'y'  // Assign to secondary axis if binary
     }
   })
   
@@ -196,11 +242,38 @@ const renderChart = (data) => {
           }
         },
         y: {
+          type: 'linear',
+          position: 'left',
           beginAtZero: false,
           min: minValue - padding,
           max: maxValue + padding,
           grid: { color: 'rgba(0, 0, 0, 0.05)' },
-          ticks: { font: { size: 11 } }
+          ticks: { font: { size: 11 } },
+          title: {
+            display: Array.from(fieldNames).some(f => !binaryFields.has(f)),
+            text: 'Value',
+            font: { size: 12, weight: 'bold' }
+          }
+        },
+        y2: {
+          type: 'linear',
+          position: 'right',
+          beginAtZero: true,
+          min: -0.2,
+          max: 1.2,
+          grid: { display: false },  // Don't overlap grid lines
+          ticks: { 
+            font: { size: 11 },
+            stepSize: 1,
+            callback: function(value) {
+              return value === 0 || value === 1 ? value : ''  // Only show 0 and 1
+            }
+          },
+          title: {
+            display: binaryFields.size > 0,
+            text: 'Binary State',
+            font: { size: 12, weight: 'bold' }
+          }
         }
       },
       animation: {
@@ -217,6 +290,12 @@ onMounted(() => {
   console.log('📍 SensorReadings mounted with props:', { selectedSensor: props.selectedSensor, deviceId: props.deviceId })
   if (props.selectedSensor) {
     fetchReadings(props.deviceId, props.selectedSensor.id)
+    
+    // For keypad sensors (type 7), always auto-refresh every 3 seconds
+    if (props.selectedSensor.tipo === 7 && !refreshInterval) {
+      console.log('🔐 Keypad sensor detected - enabling auto-refresh')
+      refreshInterval = setInterval(refreshData, 3000)
+    }
   } else {
     console.warn('⚠️ selectedSensor is null/undefined on mount')
   }
@@ -225,8 +304,21 @@ onMounted(() => {
 // Re-fetch if selectedSensor or deviceId changes
 watch(() => [props.selectedSensor, props.deviceId], ([newSensor, newDeviceId]) => {
   console.log('🔄 Props changed:', { newSensor, newDeviceId })
+  
+  // Clear existing auto-refresh interval
+  if (refreshInterval && !autoRefresh.value) {
+    clearInterval(refreshInterval)
+    refreshInterval = null
+  }
+  
   if (newSensor && newDeviceId) {
     fetchReadings(newDeviceId, newSensor.id)
+    
+    // For keypad sensors (type 7), always auto-refresh every 3 seconds
+    if (newSensor.tipo === 7 && !refreshInterval && !autoRefresh.value) {
+      console.log('🔐 Keypad sensor detected - enabling auto-refresh')
+      refreshInterval = setInterval(refreshData, 3000)
+    }
   }
 })
 
@@ -238,7 +330,26 @@ watch(timeRange, () => {
 // Watch for readingsData changes and render chart
 watch(readingsData, async (newData) => {
   if (newData && newData.length) {
-    // Wait for Vue to render the canvas element (since it's in v-else-if)
+    // Extract string data immediately for table display
+    const stringData = []
+    newData.forEach(row => {
+      const valueDict = row.value
+      if (typeof valueDict === 'object' && valueDict !== null) {
+        Object.entries(valueDict).forEach(([field, value]) => {
+          // Check if value is a string type (for keypad input)
+          if (typeof value === 'string') {
+            stringData.push({
+              time: row.time,
+              field: field,
+              value: value
+            })
+          }
+        })
+      }
+    })
+    stringDataPoints.value = stringData.reverse() // Most recent first
+    
+    // Wait for Vue to render the canvas element (since it's in v-else)
     await nextTick()
     // Additional small delay to ensure canvas is fully painted
     await new Promise(resolve => setTimeout(resolve, 100))
@@ -247,7 +358,7 @@ watch(readingsData, async (newData) => {
       console.log('Rendering chart after data update')
       renderChart(newData)
     } else {
-      console.error('Chart canvas ref still not available - canvas not in DOM')
+      console.log('No chart needed - string data only')
     }
   }
 })
@@ -319,7 +430,7 @@ onUnmounted(() => {
 
     <div v-else-if="readingsData && readingsData.length">
       <div style="background:#f7fafc; padding:16px; border-radius:8px; margin-bottom:16px">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:12px">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:12px; color:#2d3748">
           <span><strong>Data Points:</strong> {{ readingsData.length }}</span>
           <span><strong>Time:</strong> {{ new Date(readingsData[readingsData.length - 1]?.time).toLocaleTimeString() }}</span>
           <div style="display:flex; gap:16px; flex-wrap:wrap">
@@ -330,15 +441,41 @@ onUnmounted(() => {
         </div>
       </div>
       
-      <div style="position:relative; height:400px; margin-bottom:16px; background:white; padding:16px; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.1)">
+      <div v-if="stringDataPoints.length > 0" style="margin-bottom:16px; background:white; padding:16px; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.1)">
+        <h3 style="margin-top:0; margin-bottom:12px; color:#2d3748; font-size:16px">🔐 String Data (Keypad Inputs)</h3>
+        <table style="width:100%; border-collapse:collapse">
+          <thead>
+            <tr style="background:#edf2f7; border-bottom:2px solid #cbd5e0">
+              <th style="padding:10px; text-align:left; color:#2d3748; font-weight:bold">Timestamp</th>
+              <th style="padding:10px; text-align:left; color:#2d3748; font-weight:bold">Field</th>
+              <th style="padding:10px; text-align:left; color:#2d3748; font-weight:bold">Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(item, index) in stringDataPoints" :key="index" style="border-bottom:1px solid #e2e8f0">
+              <td style="padding:10px; color:#4a5568; font-size:13px">
+                {{ new Date(item.time).toLocaleString() }}
+              </td>
+              <td style="padding:10px; color:#4a5568; font-weight:600">
+                {{ item.field }}
+              </td>
+              <td style="padding:10px; font-family:monospace; background:#f7fafc; color:#2d3748; font-weight:bold; font-size:14px">
+                {{ item.value }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <div v-else style="position:relative; height:400px; margin-bottom:16px; background:white; padding:16px; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.1)">
         <canvas ref="chartRef" style="width:100%; height:100%"></canvas>
       </div>
 
-      <details style="margin-top:16px">
-        <summary style="cursor:pointer; padding:8px; background:#edf2f7; border-radius:4px; font-weight:bold">
+      <details :open="detailsOpen" @toggle="detailsOpen = $event.target.open" style="margin-top:16px">
+        <summary style="cursor:pointer; padding:8px; background:#edf2f7; border-radius:4px; font-weight:bold; color:#2d3748">
           📊 Raw JSON Data ({{ readingsData.length }} rows)
         </summary>
-        <pre style="max-height:300px; overflow:auto; background:#f7fafc; padding:12px; font-size:11px; border-radius:4px; margin-top:8px; border:1px solid #e2e8f0">{{ JSON.stringify(readingsData, null, 2) }}</pre>
+        <pre style="max-height:300px; overflow:auto; background:#f7fafc; padding:12px; font-size:11px; border-radius:4px; margin-top:8px; border:1px solid #e2e8f0; color:#2d3748">{{ JSON.stringify(readingsData, null, 2) }}</pre>
       </details>
     </div>
 

@@ -386,61 +386,6 @@ const resetEditRule = () => {
 const clearingInfluxDB = ref(false)
 const successMessage = ref(null)
 
-const clearInfluxDB = async () => {
-  const confirmed = confirm(
-    '⚠️ WARNING: This will DELETE ALL sensor data from InfluxDB!\n\n' +
-    'This includes historical readings from all sensors and boards.\n' +
-    'This action CANNOT be undone.\n\n' +
-    'Are you absolutely sure you want to continue?'
-  )
-  
-  if (!confirmed) {
-    return
-  }
-  
-  // Double confirmation
-  const doubleConfirm = confirm(
-    'FINAL CONFIRMATION\n\n' +
-    'All sensor data will be permanently deleted.\n\n' +
-    'Click OK to proceed, or Cancel to abort.'
-  )
-  
-  if (!doubleConfirm) {
-    return
-  }
-  
-  clearingInfluxDB.value = true
-  error.value = null
-  successMessage.value = null
-  
-  try {
-    const response = await fetch('/influxdb/clear', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    })
-    
-    if (!response.ok) {
-      throw new Error(`Failed to clear InfluxDB: ${response.status}`)
-    }
-    
-    const result = await response.json()
-    successMessage.value = '✅ InfluxDB cleared successfully! All sensor data has been deleted.'
-    console.log('InfluxDB cleared:', result)
-    
-    setTimeout(() => {
-      successMessage.value = null
-    }, 5000)
-    
-  } catch (err) {
-    error.value = err.message
-    console.error('Error clearing InfluxDB:', err)
-  } finally {
-    clearingInfluxDB.value = false
-  }
-}
-
 // Helper function to determine if a sensor uses string values
 const isStringSensor = (deviceId, sensorId) => {
   if (!deviceId || !sensorId) return false
@@ -451,8 +396,8 @@ const isStringSensor = (deviceId, sensorId) => {
   const sensor = sensors.find(s => s.id === sensorId)
   if (!sensor) return false
   
-  // Sensor types that use strings: 5 = Keypad (matriz de botões)
-  const STRING_SENSOR_TYPES = [5]
+  // Sensor types that use strings: 7 = Keypad 4x4
+  const STRING_SENSOR_TYPES = [7]
   return STRING_SENSOR_TYPES.includes(sensor.tipo)
 }
 
@@ -480,15 +425,7 @@ onMounted(() => {
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px">
       <h2 style="margin:0">Automation Rules</h2>
       <div style="display:flex; gap:12px">
-        <button 
-          @click="clearInfluxDB"
-          :disabled="clearingInfluxDB"
-          style="padding:10px 20px; border-radius:8px; border:none; background:#ff4d4f; color:white; cursor:pointer; font-weight:600; font-size:14px"
-          :style="{ opacity: clearingInfluxDB ? 0.5 : 1 }"
-          title="Delete all sensor data from InfluxDB"
-        >
-          {{ clearingInfluxDB ? 'Clearing...' : '🗑️ Clear Database' }}
-        </button>
+
         <button 
           @click="refreshAllSensors"
           :disabled="Object.values(loadingSensors).some(v => v)"
@@ -670,7 +607,7 @@ onMounted(() => {
         </div>
         
         <div v-for="(action, index) in editRule.entao" :key="index" style="margin-bottom:12px; padding:12px; background:rgba(250,173,20,0.1); border-radius:8px; border:1px solid rgba(250,173,20,0.3)">
-          <div style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; gap:8px; align-items:end">
+          <div style="display:grid; grid-template-columns: 1fr 1fr 100px 1fr 1fr auto; gap:8px; align-items:end">
             <div>
               <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Board:</label>
               <select 
@@ -702,8 +639,19 @@ onMounted(() => {
               </select>
             </div>
             <div>
+              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Mode:</label>
+              <select v-model="action.modo" style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px">
+                <option value="set">Set</option>
+                <option value="toggle">Toggle</option>
+              </select>
+            </div>
+            <div v-if="action.modo === 'set'">
               <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Value:</label>
               <input v-model.number="action.valor" type="number" placeholder="1" style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
+            </div>
+            <div v-else>
+              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Value:</label>
+              <input value="Toggle" disabled style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.2); color:#999; font-size:13px" />
             </div>
             <div>
               <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Duration (s):</label>
@@ -724,7 +672,7 @@ onMounted(() => {
         </div>
         
         <div v-for="(action, index) in editRule.senao" :key="index" style="margin-bottom:12px; padding:12px; background:rgba(235,47,150,0.1); border-radius:8px; border:1px solid rgba(235,47,150,0.3)">
-          <div style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; gap:8px; align-items:end">
+          <div style="display:grid; grid-template-columns: 1fr 1fr 100px 1fr 1fr auto; gap:8px; align-items:end">
             <div>
               <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Board:</label>
               <select 
@@ -982,8 +930,19 @@ onMounted(() => {
               </select>
             </div>
             <div>
+              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Mode:</label>
+              <select v-model="action.modo" style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px">
+                <option value="set">Set</option>
+                <option value="toggle">Toggle</option>
+              </select>
+            </div>
+            <div v-if="action.modo === 'set'">
               <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Value:</label>
               <input v-model.number="action.valor" type="number" placeholder="1" style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
+            </div>
+            <div v-else>
+              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Value:</label>
+              <input value="Toggle" disabled style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.2); color:#999; font-size:13px" />
             </div>
             <div>
               <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Duration (s):</label>
