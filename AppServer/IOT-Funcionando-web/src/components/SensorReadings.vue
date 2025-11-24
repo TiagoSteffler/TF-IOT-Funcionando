@@ -422,17 +422,21 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <section>
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
-      <h2 style="margin:0">
-       Leituras de sensores/atuadores
-        <span v-if="localSelectedSensor || selectedSensor" style="font-size:0.9em; color:#718096; font-weight:normal">
-          - {{ (localSelectedSensor || selectedSensor).desc || `Sensor ${(localSelectedSensor || selectedSensor).id}` }} (ID: {{ (localSelectedSensor || selectedSensor).id }})
+  <section class="sensor-section">
+    
+    <!-- HEADER -->
+    <div class="sensor-header">
+      <h2 class="sensor-title">
+        Leituras de sensores/atuadores
+        <span v-if="localSelectedSensor || selectedSensor">
+          - {{ (localSelectedSensor || selectedSensor).desc || `Sensor ${(localSelectedSensor || selectedSensor).id}` }}
+          (ID: {{ (localSelectedSensor || selectedSensor).id }})
         </span>
       </h2>
-      
+
+      <!-- CONTROLES -->
       <div style="display:flex; gap:8px; align-items:center">
-        <select v-model="timeRange" style="padding:6px 12px; border-radius:4px; border:1px solid #cbd5e0">
+        <select class="time-select" v-model="timeRange">
           <option value="-1m">Último minuto</option>
           <option value="-5m">Últimos 5 minutos</option>
           <option value="-15m">Últimos 15 minutos</option>
@@ -440,32 +444,27 @@ onUnmounted(() => {
           <option value="-6h">Últimas 6 horas</option>
           <option value="-24h">Últimas 24 horas</option>
         </select>
-        
-        <button 
-          @click="toggleAutoRefresh" 
-          :style="{
-            padding: '6px 12px',
-            borderRadius: '4px',
-            border: 'none',
-            backgroundColor: autoRefresh ? '#48bb78' : '#cbd5e0',
-            color: autoRefresh ? 'white' : '#2d3748',
-            fontWeight: 'bold',
-            cursor: 'pointer'
-          }"
+
+        <button
+          @click="toggleAutoRefresh"
+          class="btn"
+          :class="autoRefresh ? 'btn-auto-on' : 'btn-auto-off'"
         >
           {{ autoRefresh ? '🔄 Auto-refresh ON' : '⏸️ Auto-refresh OFF' }}
         </button>
-        
-        <button 
-          @click="refreshData" 
+
+        <button
+          @click="refreshData"
+          class="btn btn-refresh"
           :disabled="loading"
-          style="padding:6px 12px; border-radius:4px; border:none; background-color:#3182ce; color:white; font-weight:bold; cursor:pointer"
         >
           {{ loading ? 'Carregando...' : 'Refresh' }}
         </button>
       </div>
     </div>
 
+
+    <!-- ESTADOS: LOADING / ERROR -->
     <div v-if="loading">
       <p>Carregando leituras...</p>
     </div>
@@ -475,84 +474,405 @@ onUnmounted(() => {
       <p style="font-size:12px; color:#666">Certifique-se de que a API está rodando em localhost:5000.</p>
     </div>
 
+
+    <!-- DADOS DISPONÍVEIS -->
     <div v-else-if="readingsData && readingsData.length">
-      <div style="background:#f7fafc; padding:16px; border-radius:8px; margin-bottom:16px">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:12px; color:#2d3748">
+
+      <!-- RESUMO -->
+      <div class="summary-box">
+        <div class="summary-header">
           <span><strong>Pontos de dados:</strong> {{ readingsData.length }}</span>
           <span><strong>Hora:</strong> {{ new Date(readingsData[readingsData.length - 1]?.time).toLocaleTimeString() }}</span>
+
           <div style="display:flex; gap:16px; flex-wrap:wrap">
-            <span v-for="(val, key) in readingsData[readingsData.length - 1]?.value" :key="key">
+            <span
+              v-for="(val, key) in readingsData[readingsData.length - 1]?.value"
+              :key="key"
+            >
               <strong>{{ key }}:</strong> {{ val }}
             </span>
           </div>
         </div>
       </div>
-      
-      <div v-if="stringDataPoints.length > 0" style="margin-bottom:16px; background:white; padding:16px; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.1)">
-        <h3 style="margin-top:0; margin-bottom:12px; color:#2d3748; font-size:16px">Entradas do teclado:</h3>
-        <table style="width:100%; border-collapse:collapse">
+
+
+      <!-- STRING DATA (TECLADO) -->
+      <div v-if="stringDataPoints.length > 0" class="string-table-wrapper">
+        <h3 class="string-table-title">Entradas do teclado:</h3>
+
+        <table class="string-table">
           <thead>
-            <tr style="background:#edf2f7; border-bottom:2px solid #cbd5e0">
-              <th style="padding:10px; text-align:left; color:#2d3748; font-weight:bold">Timestamp</th>
-              <th style="padding:10px; text-align:left; color:#2d3748; font-weight:bold">Campo</th>
-              <th style="padding:10px; text-align:left; color:#2d3748; font-weight:bold">Valor</th>
+            <tr>
+              <th>Timestamp</th>
+              <th>Campo</th>
+              <th>Valor</th>
             </tr>
           </thead>
+
           <tbody>
-            <tr v-for="(item, index) in stringDataPoints" :key="index" style="border-bottom:1px solid #e2e8f0">
-              <td style="padding:10px; color:#4a5568; font-size:13px">
-                {{ new Date(item.time).toLocaleString() }}
-              </td>
-              <td style="padding:10px; color:#4a5568; font-weight:600">
-                {{ item.field }}
-              </td>
-              <td style="padding:10px; font-family:monospace; background:#f7fafc; color:#2d3748; font-weight:bold; font-size:14px">
-                {{ item.value }}
-              </td>
+            <tr v-for="(item, index) in stringDataPoints" :key="index">
+              <td>{{ new Date(item.time).toLocaleString() }}</td>
+              <td style="font-weight:600">{{ item.field }}</td>
+              <td>{{ item.value }}</td>
             </tr>
           </tbody>
         </table>
       </div>
-      
-      <div v-else style="position:relative; height:400px; margin-bottom:16px; background:white; padding:16px; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.1)">
-        <canvas ref="chartRef" style="width:100%; height:100%"></canvas>
+
+
+      <!-- GRÁFICO -->
+      <div
+        v-else
+        class="chart-box"
+      >
+        <canvas ref="chartRef"></canvas>
       </div>
 
-      <details :open="detailsOpen" @toggle="detailsOpen = $event.target.open" style="margin-top:16px">
-        <summary style="cursor:pointer; padding:8px; background:#edf2f7; border-radius:4px; font-weight:bold; color:#2d3748">
-          Dados JSON raw: ({{ readingsData.length }} linhas)
-        </summary>
-        <pre style="max-height:300px; overflow:auto; background:#f7fafc; padding:12px; font-size:11px; border-radius:4px; margin-top:8px; border:1px solid #e2e8f0; color:#2d3748">{{ JSON.stringify(readingsData, null, 2) }}</pre>
+
+      <!-- RAW JSON -->
+      <details class="raw-details" :open="detailsOpen" @toggle="detailsOpen = $event.target.open">
+        <summary>Dados JSON raw: ({{ readingsData.length }} linhas)</summary>
+
+        <pre class="raw-json-box">
+{{ JSON.stringify(readingsData, null, 2) }}
+        </pre>
       </details>
+
     </div>
 
+
+    <!-- NENHUM SENSOR SELECIONADO -->
     <div v-else>
-      <div v-if="!props.selectedSensor && !localSelectedSensor" style="background:#f7fafc; padding:24px; border-radius:8px; text-align:center">
-        <p style="margin-bottom:16px; color:#2d3748; font-size:16px">Nenhum sensor selecionado. Escolha um sensor para visualizar os dados:</p>
-        
+      <div v-if="!props.selectedSensor && !localSelectedSensor" class="sensor-select-container">
+        <p class="no-sensor-text">Nenhum sensor selecionado. Escolha um sensor para visualizar os dados:</p>
+
         <div v-if="availableSensors.length > 0" style="max-width:400px; margin:0 auto">
-          <select 
-            v-model="localSelectedSensor" 
-            style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e0; font-size:14px; background:white; color:#2d3748"
+          <select
+            v-model="localSelectedSensor"
+            class="sensor-select"
           >
             <option :value="null" disabled>-- Selecione um sensor --</option>
-            <option 
-              v-for="sensor in availableSensors" 
-              :key="sensor.id" 
+
+            <option
+              v-for="sensor in availableSensors"
+              :key="sensor.id"
               :value="sensor"
             >
               {{ sensor.desc || `Sensor ${sensor.id}` }} (ID: {{ sensor.id }}, Tipo: {{ sensor.tipo }})
             </option>
           </select>
         </div>
-        
-        <p v-else style="color:#718096; font-size:14px; margin-top:16px">
+
+        <p v-else class="no-sensor-text">
           Nenhum sensor encontrado para este dispositivo.
         </p>
       </div>
-      
+
       <p v-else>Nenhuma leitura disponível para o sensor selecionado.</p>
     </div>
+
   </section>
 </template>
 
+
+<style scoped>
+/* ============================================================
+   SEÇÃO PRINCIPAL (mesmo vidro fosco do style original)
+   ============================================================ */
+.sensor-section {
+  display: block;
+  padding: 20px;
+
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 18px;
+
+  color: white;
+  font-family: Arial, sans-serif;
+
+  box-shadow: 0 4px 18px rgba(0,0,0,0.25);
+}
+
+
+/* ============================================================
+   TÍTULO + BARRA DE CONTROLES (seguindo o estilo dos h2/h3)
+   ============================================================ */
+.sensor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.sensor-title {
+  margin: 0;
+  font-size: 1.4rem;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  color: white;
+}
+
+.sensor-title span {
+  font-size: 0.9em;
+  font-weight: normal;
+  color: rgba(255,255,255,0.7);
+}
+
+
+/* ============================================================
+   SELECTOR DE TEMPO (convertido para estilo escuro fosco)
+   ============================================================ */
+.time-select {
+  padding: 10px 14px;
+  border-radius: 12px;
+
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255,255,255,0.25);
+  color: white;
+
+  font-size: 0.95rem;
+  cursor: pointer;
+  box-shadow: inset 0 0 8px rgba(0,0,0,0.25);
+  transition: 0.2s;
+}
+
+.time-select:focus {
+  outline: none;
+  border: 1px solid rgba(255,255,255,0.45);
+  background: rgba(0, 0, 0, 0.45);
+}
+
+
+/* ============================================================
+   BOTÕES (convertidos para o mesmo padrão do botão principal)
+   ============================================================ */
+.btn {
+  width: auto;
+  height: 45px;
+
+  padding: 8px 16px;
+  border: none;
+  border-radius: 30px;
+
+  background-color: rgba(0, 0, 0, 0.5);
+  color: white;
+
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+
+  transition: 0.15s;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.25);
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 14px rgba(0,0,0,0.35);
+}
+
+/* auto-refresh ON (verde suave fosco) */
+.btn-auto-on {
+  background: rgba(80, 200, 120, 0.5);
+}
+
+.btn-auto-on:hover {
+  background: rgba(80, 200, 120, 0.7);
+}
+
+/* auto-refresh OFF (cinza neutro fosco) */
+.btn-auto-off {
+  background: rgba(200, 200, 200, 0.35);
+  color: white;
+}
+
+.btn-auto-off:hover {
+  background: rgba(200, 200, 200, 0.55);
+}
+
+/* refresh (vermelho estilo danger) */
+.btn-refresh {
+  background: rgba(255, 60, 60, 0.5);
+}
+
+.btn-refresh:hover:not(:disabled) {
+  background: rgba(255, 60, 60, 0.7);
+}
+
+.btn-refresh:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+
+/* ============================================================
+   PAINEL DE RESUMO
+   ============================================================ */
+.summary-box {
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.15);
+
+  padding: 18px;
+  border-radius: 14px;
+  margin-bottom: 20px;
+
+  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+  color: white;
+}
+
+.summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+
+/* ============================================================
+   TABELA (STRING VALUES)
+   ============================================================ */
+.string-table-wrapper {
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.15);
+
+  padding: 20px;
+  border-radius: 14px;
+  margin-bottom: 20px;
+
+  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+  color: white;
+}
+
+.string-table-title {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.4);
+}
+
+.string-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.string-table thead tr {
+  background: rgba(255,255,255,0.08);
+}
+
+.string-table th {
+  padding: 10px;
+  font-weight: bold;
+  color: white;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.4);
+}
+
+.string-table td {
+  padding: 10px;
+  color: rgba(255,255,255,0.85);
+  border-bottom: 1px solid rgba(255,255,255,0.15);
+  font-size: 13px;
+}
+
+.string-table td:last-child {
+  font-family: monospace;
+  font-weight: bold;
+  background: rgba(255,255,255,0.05);
+  color: white;
+  border-radius: 6px;
+}
+
+
+/* ============================================================
+   ÁREA DO GRÁFICO
+   ============================================================ */
+.chart-box {
+  position: relative;
+  height: 400px;
+
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.15);
+  padding: 20px;
+  border-radius: 14px;
+  margin-bottom: 20px;
+
+  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+}
+
+
+/* ============================================================
+   RAW JSON
+   ============================================================ */
+.raw-details summary {
+  cursor: pointer;
+  padding: 10px;
+
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 10px;
+
+  font-weight: bold;
+  color: white;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
+
+.raw-json-box {
+  max-height: 300px;
+  overflow: auto;
+
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.2);
+  padding: 14px;
+  border-radius: 10px;
+
+  color: white;
+  font-size: 11px;
+  margin-top: 10px;
+  white-space: pre-wrap;
+}
+
+
+/* ============================================================
+   SELETOR DE SENSOR
+   ============================================================ */
+.sensor-select-container {
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.15);
+
+  padding: 24px;
+  text-align: center;
+  border-radius: 14px;
+
+  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+  color: white;
+}
+
+.sensor-select {
+  width: 100%;
+  padding: 12px;
+
+  border-radius: 12px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.25);
+  color: white;
+
+  font-size: 0.95rem;
+
+  box-shadow: inset 0 0 8px rgba(0,0,0,0.25);
+}
+
+.sensor-select:focus {
+  outline: none;
+  border-color: rgba(255,255,255,0.5);
+}
+
+.no-sensor-text {
+  color: rgba(255,255,255,0.75);
+  font-size: 14px;
+  margin-top: 16px;
+}
+</style>

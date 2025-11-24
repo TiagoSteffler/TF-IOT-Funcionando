@@ -375,7 +375,7 @@ label {
 
 /* botão padrão */
 button {
-  width: 200px;
+  width: auto;
   height: 55px;
   padding: 8px 14px;
 
