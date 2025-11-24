@@ -1,36 +1,25 @@
 {
-    "leds": {
-        "id_regra": "leds",
+    "senha": {
+        "id_regra": "senha",
         "condicao": [
             {
+                "tipo": "senha",
                 "id_device": "esp32_device_1",
                 "id_sensor": 1,
+                "senha": "1234",
                 "last_state": false,
-                "medida": "value",
-                "operador": "==",
-                "tempo": 0,
-                "time_stamp": 1763915381.9501848,
-                "tipo": "limite",
-                "valor_limite": 1
+                "time_stamp": 1763986744.072299
             }
         ],
         "entao": [
             {
-                "id_atuador": 1,
-                "id_device": "esp32_device_2",
-                "modo": "set",
-                "tempo": 0,
-                "valor": 1
-            }
-        ],
-        "senao": [
-            {
-                "id_device": "esp32_device_2",
-                "id_atuador": 1,
-                "valor": 0,
-                "tempo": 0,
+                "id_device": "esp32_device_1",
+                "id_atuador": 2,
+                "valor": 1,
+                "tempo": 5,
                 "modo": "set"
             }
-        ]
+        ],
+        "senao": []
     }
 }
