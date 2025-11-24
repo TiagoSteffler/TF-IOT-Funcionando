@@ -420,73 +420,64 @@ onMounted(() => {
 
 <template>
   <section>
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px">
-      <h2 style="margin:0">Regras</h2>
-      <div style="display:flex; gap:12px">
-
-        <button 
+    <!-- Header -->
+    <div class="flex-between" style="margin-bottom:24px">
+      <h2>Regras</h2>
+      <div class="flex-gap-12">
+        <button
           @click="refreshAllSensors"
           :disabled="Object.values(loadingSensors).some(v => v)"
-          style="padding:10px 20px; border-radius:8px; border:none; background:#52c41a; color:white; cursor:pointer; font-weight:600; font-size:14px; opacity: 1"
-          :style="{ opacity: Object.values(loadingSensors).some(v => v) ? 0.5 : 1 }"
+          :class="['btn', 'btn-green', { 'btn-disabled': Object.values(loadingSensors).some(v => v) }]"
         >
           Atualizar sensores
         </button>
-        <button 
+
+        <button
           @click="showAddForm = !showAddForm"
-          style="padding:10px 20px; border-radius:8px; border:none; background:#1890ff; color:white; cursor:pointer; font-weight:600; font-size:14px"
+          class="btn btn-blue"
         >
           {{ showAddForm ? 'Cancelar' : 'Nova regra' }}
         </button>
       </div>
     </div>
 
-    <!-- Success message -->
-    <div v-if="successMessage" style="margin-bottom:16px; padding:12px; background:#f6ffed; border-left:4px solid #52c41a; color:#52c41a; border-radius:4px">
+    <!-- Messages -->
+    <div v-if="successMessage" class="msg-success">
       {{ successMessage }}
     </div>
 
-    <!-- Error message -->
-    <div v-if="error" style="margin-bottom:16px; padding:12px; background:#fff2f0; border-left:4px solid #ff4d4f; color:#ff4d4f; border-radius:4px">
+    <div v-if="error" class="msg-error">
       Error: {{ error }}
     </div>
 
     <!-- Edit Rule Form -->
-    <div v-if="showEditForm" style="margin-bottom:24px; padding:20px; background:rgba(250,173,20,0.1); border-radius:12px; border:1px solid rgba(250,173,20,0.3)">
-      <h3 style="margin-top:0; color:#ffc53d">Edit Rule: {{ editRule.id_regra }}</h3>
-      
-      <div style="margin-bottom:16px">
-        <label style="display:block; color:#ffc53d; font-weight:600; margin-bottom:8px">ID da regra:</label>
-        <input 
-          v-model="editRule.id_regra" 
-          disabled
-          style="width:100%; padding:10px; border-radius:6px; border:1px solid #434343; background:rgba(0,0,0,0.5); color:#8c8c8c; font-size:14px; cursor:not-allowed"
-        />
+    <div v-if="showEditForm" class="form-edit">
+      <h3>Edit Rule: {{ editRule.id_regra }}</h3>
+
+      <div class="input-block">
+        <label class="label-orange">ID da regra:</label>
+        <input v-model="editRule.id_regra" disabled class="input input-large input-disabled" />
       </div>
 
       <!-- Conditions -->
       <div style="margin-bottom:20px">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
-          <h4 style="margin:0; color:#95de64">Conditions (IF)</h4>
-          <div style="display:flex; gap:8px">
-            <button @click="addEditCondition" style="padding:6px 12px; border-radius:6px; border:none; background:#52c41a; color:white; cursor:pointer; font-weight:600; font-size:12px">
-              Condição de limite
-            </button>
-            <button @click="addEditPasswordCondition" style="padding:6px 12px; border-radius:6px; border:none; background:#52c41a; color:white; cursor:pointer; font-weight:600; font-size:12px">
-              Condição de senha
-            </button>
+        <div class="flex-between" style="margin-bottom:12px">
+          <h4 class="label-green">Conditions (IF)</h4>
+          <div class="flex-gap-12">
+            <button @click="addEditCondition" class="btn-small btn-green">Condição de limite</button>
+            <button @click="addEditPasswordCondition" class="btn-small btn-green">Condição de senha</button>
           </div>
         </div>
-        
-        <div v-for="(cond, index) in editRule.condicao" :key="index" style="margin-bottom:12px; padding:12px; background:rgba(82,196,26,0.1); border-radius:8px; border:1px solid rgba(82,196,26,0.3)">
+
+        <div v-for="(cond, index) in editRule.condicao" :key="index" class="block-green">
           <!-- Limit Condition -->
-          <div v-if="cond.tipo === 'limite'" style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr auto; gap:8px; align-items:end">
+          <div v-if="cond.tipo === 'limite'" class="grid-cond-limit">
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Board:</label>
-              <select 
-                v-model="cond.id_device" 
+              <label class="label-green">Board:</label>
+              <select
+                v-model="cond.id_device"
                 @change="fetchSensorsForBoard(cond.id_device.replace('esp32_device_', ''))"
-                style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
+                class="select border-green"
               >
                 <option value="" disabled>Selecione a placa...</option>
                 <option v-for="board in boards" :key="board.id" :value="`esp32_device_${board.deviceId}`">
@@ -494,34 +485,33 @@ onMounted(() => {
                 </option>
               </select>
             </div>
+
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Sensor:</label>
-              <select 
-                v-model="cond.id_sensor" 
+              <label class="label-green">Sensor:</label>
+              <select
+                v-model="cond.id_sensor"
                 :disabled="!cond.id_device"
-                style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
+                class="select border-green"
               >
                 <option value="" disabled>{{ cond.id_device ? 'Selecione o sensor...' : 'Selecione a placa primeiro' }}</option>
-                <option 
+                <option
                   v-for="sensor in getSensorsForDevice(cond.id_device?.replace('esp32_device_', ''))"
-                  :key="sensor.id" 
+                  :key="sensor.id"
                   :value="sensor.id"
                 >
                   {{ sensor.desc || `Sensor ${sensor.id}` }} (Tipo: {{ sensor.tipo }})
                 </option>
               </select>
             </div>
+
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Nome do campo:</label>
-              <input 
-                v-model="cond.medida" 
-                placeholder="e.g., x, y, bt, temperature"
-                style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
-              />
+              <label class="label-green">Nome do campo:</label>
+              <input v-model="cond.medida" placeholder="e.g., x, y, bt, temperature" class="input" />
             </div>
+
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Operator:</label>
-              <select v-model="cond.operador" style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px">
+              <label class="label-green">Operator:</label>
+              <select v-model="cond.operador" class="select border-green">
                 <option value=">">></option>
                 <option value=">=">>=</option>
                 <option value="<"><</option>
@@ -530,38 +520,43 @@ onMounted(() => {
                 <option value="!=">!=</option>
               </select>
             </div>
+
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Value:</label>
-              <input 
+              <label class="label-green">Value:</label>
+              <input
                 v-if="isStringSensor(cond.id_device, cond.id_sensor)"
-                v-model="cond.valor_limite" 
-                type="text" 
-                placeholder="ABC123" 
-                style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" 
+                v-model="cond.valor_limite"
+                type="text"
+                placeholder="ABC123"
+                class="input"
               />
-              <input 
+              <input
                 v-else
-                v-model.number="cond.valor_limite" 
-                type="number" 
-                placeholder="80" 
-                style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" 
+                v-model.number="cond.valor_limite"
+                type="number"
+                placeholder="80"
+                class="input"
               />
             </div>
+
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Time (s):</label>
-              <input v-model.number="cond.tempo" type="number" placeholder="5" style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
+              <label class="label-green">Time (s):</label>
+              <input v-model.number="cond.tempo" type="number" placeholder="5" class="input" />
             </div>
-            <button @click="removeEditCondition(index)" style="padding:6px 10px; border-radius:4px; border:none; background:rgba(255,77,79,0.3); color:#ff7875; cursor:pointer; font-size:12px">🗑️</button>
-          </div>
-          
-          <!-- Password Condition -->
-          <div v-else-if="cond.tipo === 'senha'" style="display:grid; grid-template-columns: 1fr 1fr 1fr auto; gap:8px; align-items:end">
+
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Board:</label>
-              <select 
-                v-model="cond.id_device" 
+              <button @click="removeEditCondition(index)" class="btn-delete">🗑️</button>
+            </div>
+          </div>
+
+          <!-- Password Condition -->
+          <div v-else-if="cond.tipo === 'senha'" class="grid-cond-pass">
+            <div>
+              <label class="label-green">Board:</label>
+              <select
+                v-model="cond.id_device"
                 @change="fetchSensorsForBoard(cond.id_device.replace('esp32_device_', ''))"
-                style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
+                class="select border-green"
               >
                 <option value="" disabled>Selecione a placa...</option>
                 <option v-for="board in boards" :key="board.id" :value="`esp32_device_${board.deviceId}`">
@@ -569,49 +564,52 @@ onMounted(() => {
                 </option>
               </select>
             </div>
+
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Teclado:</label>
-              <select 
-                v-model="cond.id_sensor" 
+              <label class="label-green">Teclado:</label>
+              <select
+                v-model="cond.id_sensor"
                 :disabled="!cond.id_device"
-                style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
+                class="select border-green"
               >
                 <option value="" disabled>{{ cond.id_device ? 'Selecione o teclado...' : 'Selecione a placa primeiro' }}</option>
-                <option 
+                <option
                   v-for="sensor in getSensorsForDevice(cond.id_device?.replace('esp32_device_', '')).filter(s => s.tipo === 7)"
-                  :key="sensor.id" 
+                  :key="sensor.id"
                   :value="sensor.id"
                 >
                   {{ sensor.desc || `Keypad ${sensor.id}` }}
                 </option>
               </select>
             </div>
+
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Password:</label>
-              <input v-model="cond.senha" placeholder="1234" style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
+              <label class="label-green">Password:</label>
+              <input v-model="cond.senha" placeholder="1234" class="input" />
             </div>
-            <button @click="removeEditCondition(index)" style="padding:6px 10px; border-radius:4px; border:none; background:rgba(255,77,79,0.3); color:#ff7875; cursor:pointer; font-size:12px">🗑️</button>
+
+            <div>
+              <button @click="removeEditCondition(index)" class="btn-delete">🗑️</button>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- Then Actions -->
       <div style="margin-bottom:20px">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
-          <h4 style="margin:0; color:#ffc53d">Ações (ENTÃO)</h4>
-          <button @click="addEditThenAction" style="padding:6px 12px; border-radius:6px; border:none; background:#faad14; color:white; cursor:pointer; font-weight:600; font-size:12px">
-            Adicionar ação
-          </button>
+        <div class="flex-between" style="margin-bottom:12px">
+          <h4 class="label-orange">Ações (ENTÃO)</h4>
+          <button @click="addEditThenAction" class="btn-small btn-orange">Adicionar ação</button>
         </div>
-        
-        <div v-for="(action, index) in editRule.entao" :key="index" style="margin-bottom:12px; padding:12px; background:rgba(250,173,20,0.1); border-radius:8px; border:1px solid rgba(250,173,20,0.3)">
-          <div style="display:grid; grid-template-columns: 1fr 1fr 100px 1fr 1fr auto; gap:8px; align-items:end">
+
+        <div v-for="(action, index) in editRule.entao" :key="index" class="block-orange">
+          <div class="grid-action">
             <div>
-              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Board:</label>
-              <select 
-                v-model="action.id_device" 
+              <label class="label-orange">Board:</label>
+              <select
+                v-model="action.id_device"
                 @change="fetchSensorsForBoard(action.id_device.replace('esp32_device_', ''))"
-                style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
+                class="select border-orange"
               >
                 <option value="" disabled>Selecione a placa...</option>
                 <option v-for="board in boards" :key="board.id" :value="`esp32_device_${board.deviceId}`">
@@ -619,64 +617,66 @@ onMounted(() => {
                 </option>
               </select>
             </div>
+
             <div>
-              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Actuator:</label>
-              <select 
-                v-model="action.id_atuador" 
-                :disabled="!action.id_device"
-                style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
-              >
+              <label class="label-orange">Actuator:</label>
+              <select v-model="action.id_atuador" :disabled="!action.id_device" class="select border-orange">
                 <option value="" disabled>{{ action.id_device ? 'Selecione o atuador...' : 'Selecione a placa primeiro' }}</option>
-                <option 
+                <option
                   v-for="actuator in getSensorsForDevice(action.id_device?.replace('esp32_device_', '')).filter(s => s.tipo === 4 || s.tipo === 5)"
-                  :key="actuator.id" 
+                  :key="actuator.id"
                   :value="actuator.id"
                 >
                   {{ actuator.desc || `Atuador ${actuator.id}` }} (Tipo: {{ actuator.tipo === 4 ? 'Servo' : 'Relé' }})
                 </option>
               </select>
             </div>
+
             <div>
-              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Modo:</label>
-              <select v-model="action.modo" style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px">
+              <label class="label-orange">Modo:</label>
+              <select v-model="action.modo" class="select border-orange">
                 <option value="set">Set</option>
                 <option value="toggle">Toggle</option>
               </select>
             </div>
+
             <div v-if="action.modo === 'set'">
-              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Valor:</label>
-              <input v-model.number="action.valor" type="number" placeholder="1" style="width:50%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
+              <label class="label-orange">Valor:</label>
+              <input v-model.number="action.valor" type="number" placeholder="1" class="input" />
             </div>
+
             <div v-else>
-              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Valor:</label>
-              <input value="Toggle" disabled style="width:50%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.2); color:#999; font-size:13px" />
+              <label class="label-orange">Valor:</label>
+              <input value="Toggle" disabled class="input input-disabled" />
             </div>
+
             <div>
-              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Duração (s):</label>
-              <input v-model.number="action.tempo" type="number" placeholder="0" min="0" title="0 = permanente, >0 = temporário (auto-reverter para 0)" style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
+              <label class="label-orange">Duração (s):</label>
+              <input v-model.number="action.tempo" type="number" placeholder="0" min="0" class="input" />
             </div>
-            <button @click="removeEditThenAction(index)" style="padding:6px 10px; border-radius:4px; border:none; background:rgba(255,77,79,0.3); color:#ff7875; cursor:pointer; font-size:12px">🗑️</button>
+
+            <div>
+              <button @click="removeEditThenAction(index)" class="btn-delete">🗑️</button>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- Else Actions -->
       <div style="margin-bottom:20px">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
-          <h4 style="margin:0; color:#ff85c0">Ações (SENÃO) - Opcional</h4>
-          <button @click="addEditElseAction" style="padding:6px 12px; border-radius:6px; border:none; background:#eb2f96; color:white; cursor:pointer; font-weight:600; font-size:12px">
-            Adicionar ação
-          </button>
+        <div class="flex-between" style="margin-bottom:12px">
+          <h4 class="label-pink">Ações (SENÃO) - Opcional</h4>
+          <button @click="addEditElseAction" class="btn-small btn-pink">Adicionar ação</button>
         </div>
-        
-        <div v-for="(action, index) in editRule.senao" :key="index" style="margin-bottom:12px; padding:12px; background:rgba(235,47,150,0.1); border-radius:8px; border:1px solid rgba(235,47,150,0.3)">
-          <div style="display:grid; grid-template-columns: 1fr 1fr 100px 1fr 1fr auto; gap:8px; align-items:end">
+
+        <div v-for="(action, index) in editRule.senao" :key="index" class="block-pink">
+          <div class="grid-action">
             <div>
-              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Board:</label>
-              <select 
-                v-model="action.id_device" 
+              <label class="label-pink">Board:</label>
+              <select
+                v-model="action.id_device"
                 @change="fetchSensorsForBoard(action.id_device.replace('esp32_device_', ''))"
-                style="width:100%; padding:6px; border-radius:4px; border:1px solid #eb2f96; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
+                class="select border-pink"
               >
                 <option value="" disabled>Selecione a placa...</option>
                 <option v-for="board in boards" :key="board.id" :value="`esp32_device_${board.deviceId}`">
@@ -684,100 +684,86 @@ onMounted(() => {
                 </option>
               </select>
             </div>
+
             <div>
-              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Actuator:</label>
-              <select 
-                v-model="action.id_atuador" 
-                :disabled="!action.id_device"
-                style="width:100%; padding:6px; border-radius:4px; border:1px solid #eb2f96; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
-              >
+              <label class="label-pink">Actuator:</label>
+              <select v-model="action.id_atuador" :disabled="!action.id_device" class="select border-pink">
                 <option value="" disabled>{{ action.id_device ? 'Selecione o atuador...' : 'Selecione a placa primeiro' }}</option>
-                <option 
+                <option
                   v-for="actuator in getSensorsForDevice(action.id_device?.replace('esp32_device_', '')).filter(s => s.tipo === 4 || s.tipo === 5)"
-                  :key="actuator.id" 
+                  :key="actuator.id"
                   :value="actuator.id"
                 >
                   {{ actuator.desc || `Atuador ${actuator.id}` }} (Tipo: {{ actuator.tipo === 4 ? 'Servo' : 'Relé' }})
                 </option>
               </select>
             </div>
+
             <div>
-              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Modo:</label>
-              <select v-model="action.modo" style="width:100%; padding:6px; border-radius:4px; border:1px solid #eb2f96; background:rgba(0,0,0,0.3); color:#fff; font-size:13px">
+              <label class="label-pink">Modo:</label>
+              <select v-model="action.modo" class="select border-pink">
                 <option value="set">Set</option>
                 <option value="toggle">Toggle</option>
               </select>
             </div>
-            <div v-if="action.modo === 'set'">
-              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Valor:</label>
-              <input v-model.number="action.valor" type="number" placeholder="0" style="width:50%; padding:6px; border-radius:4px; border:1px solid #eb2f96; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
-            </div>
-            <div v-else>
-              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Valor:</label>
-              <input value="Toggle" disabled style="width:50%; padding:6px; border-radius:4px; border:1px solid #eb2f96; background:rgba(0,0,0,0.2); color:#999; font-size:13px" />
-            </div>
+
             <div>
-              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Duração (s):</label>
-              <input v-model.number="action.tempo" type="number" placeholder="0" min="0" title="0 = permanente, >0 = temporário (auto-reverte para 0 após duração)" style="width:100%; padding:6px; border-radius:4px; border:1px solid #eb2f96; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
+              <label class="label-pink">Valor:</label>
+              <input v-model.number="action.valor" type="number" placeholder="0" class="input" />
             </div>
-            <button @click="removeEditElseAction(index)" style="padding:6px 10px; border-radius:4px; border:none; background:rgba(255,77,79,0.3); color:#ff7875; cursor:pointer; font-size:12px">🗑️</button>
+
+            <div>
+              <label class="label-pink">Duração (s):</label>
+              <input v-model.number="action.tempo" type="number" placeholder="0" min="0" class="input" />
+            </div>
+
+            <div>
+              <button @click="removeEditElseAction(index)" class="btn-delete">🗑️</button>
+            </div>
           </div>
         </div>
       </div>
 
-      <div style="display:flex; gap:12px">
-        <button 
+      <div class="flex-gap-12">
+        <button
           @click="updateRule"
           :disabled="!editRule.id_regra || editRule.condicao.length === 0 || editRule.entao.length === 0"
-          style="padding:12px 24px; border-radius:8px; border:none; background:#52c41a; color:white; cursor:pointer; font-weight:600; font-size:14px; flex:1"
+          class="btn btn-green"
+          style="flex:1"
         >
           Atualizar regra
         </button>
-        <button 
-          @click="cancelEdit"
-          style="padding:12px 24px; border-radius:8px; border:none; background:rgba(255,77,79,0.3); color:#ff7875; cursor:pointer; font-weight:600; font-size:14px"
-        >
-          Cancelar
-        </button>
+        <button @click="cancelEdit" class="btn-delete">Cancelar</button>
       </div>
     </div>
 
     <!-- Add Rule Form -->
-    <div v-if="showAddForm" style="margin-bottom:24px; padding:20px; background:rgba(24,144,255,0.1); border-radius:12px; border:1px solid rgba(24,144,255,0.3)">
-      <h3 style="margin-top:0; color:#91d5ff">Criar nova regra</h3>
-      
-      <div style="margin-bottom:16px">
-        <label style="display:block; color:#91d5ff; font-weight:600; margin-bottom:8px">ID da Regra:</label>
-        <input 
-          v-model="newRule.id_regra" 
-          placeholder="e.g., rule_temp_alert"
-          style="width:100%; padding:10px; border-radius:6px; border:1px solid #434343; background:rgba(0,0,0,0.3); color:#fff; font-size:14px"
-        />
+    <div v-if="showAddForm" class="form-add">
+      <h3>Criar nova regra</h3>
+
+      <div class="input-block">
+        <label class="label-blue" style="display:block; color:#91d5ff; margin-bottom:8px; font-weight:600">ID da Regra:</label>
+        <input v-model="newRule.id_regra" placeholder="e.g., rule_temp_alert" class="input input-large" />
       </div>
 
-      <!-- Conditions -->
+      <!-- Conditions (New) -->
       <div style="margin-bottom:20px">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
-          <h4 style="margin:0; color:#95de64">Conditions (IF)</h4>
-          <div style="display:flex; gap:8px">
-            <button @click="addCondition" style="padding:6px 12px; border-radius:6px; border:none; background:#52c41a; color:white; cursor:pointer; font-weight:600; font-size:12px">
-              Condição de limite
-            </button>
-            <button @click="addPasswordCondition" style="padding:6px 12px; border-radius:6px; border:none; background:#52c41a; color:white; cursor:pointer; font-weight:600; font-size:12px">
-              Condição de senha
-            </button>
+        <div class="flex-between" style="margin-bottom:12px">
+          <h4 class="label-green">Conditions (IF)</h4>
+          <div class="flex-gap-12">
+            <button @click="addCondition" class="btn-small btn-green">Condição de limite</button>
+            <button @click="addPasswordCondition" class="btn-small btn-green">Condição de senha</button>
           </div>
         </div>
-        
-        <div v-for="(cond, index) in newRule.condicao" :key="index" style="margin-bottom:12px; padding:12px; background:rgba(82,196,26,0.1); border-radius:8px; border:1px solid rgba(82,196,26,0.3)">
-          <!-- Limit Condition -->
-          <div v-if="cond.tipo === 'limite'" style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr auto; gap:8px; align-items:end">
+
+        <div v-for="(cond, index) in newRule.condicao" :key="index" class="block-green">
+          <div v-if="cond.tipo === 'limite'" class="grid-cond-limit">
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Placa:</label>
-              <select 
-                v-model="cond.id_device" 
+              <label class="label-green">Placa:</label>
+              <select
+                v-model="cond.id_device"
                 @change="fetchSensorsForBoard(cond.id_device.replace('esp32_device_', ''))"
-                style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
+                class="select border-green"
               >
                 <option value="" disabled>Selecione a placa...</option>
                 <option v-for="board in boards" :key="board.id" :value="`esp32_device_${board.deviceId}`">
@@ -785,34 +771,29 @@ onMounted(() => {
                 </option>
               </select>
             </div>
+
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Sensor:</label>
-              <select 
-                v-model="cond.id_sensor" 
-                :disabled="!cond.id_device"
-                style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
-              >
+              <label class="label-green">Sensor:</label>
+              <select v-model="cond.id_sensor" :disabled="!cond.id_device" class="select border-green">
                 <option value="" disabled>{{ cond.id_device ? 'Selecione o sensor...' : 'Selecione a placa primeiro' }}</option>
-                <option 
+                <option
                   v-for="sensor in getSensorsForDevice(cond.id_device?.replace('esp32_device_', ''))"
-                  :key="sensor.id" 
+                  :key="sensor.id"
                   :value="sensor.id"
                 >
                   {{ sensor.desc || `Sensor ${sensor.id}` }} (Tipo: {{ sensor.tipo }})
                 </option>
               </select>
             </div>
+
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Nome do campo:</label>
-              <input 
-                v-model="cond.medida" 
-                placeholder="e.g., x, y, bt, temperature"
-                style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
-              />
+              <label class="label-green">Nome do campo:</label>
+              <input v-model="cond.medida" placeholder="e.g., x, y, bt, temperature" class="input" />
             </div>
+
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Operador:</label>
-              <select v-model="cond.operador" style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px">
+              <label class="label-green">Operador:</label>
+              <select v-model="cond.operador" class="select border-green">
                 <option value=">">></option>
                 <option value=">=">>=</option>
                 <option value="<"><</option>
@@ -821,38 +802,42 @@ onMounted(() => {
                 <option value="!=">!=</option>
               </select>
             </div>
+
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Valor:</label>
-              <input 
+              <label class="label-green">Valor:</label>
+              <input
                 v-if="isStringSensor(cond.id_device, cond.id_sensor)"
-                v-model="cond.valor_limite" 
-                type="text" 
-                placeholder="ABC123" 
-                style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" 
+                v-model="cond.valor_limite"
+                type="text"
+                placeholder="ABC123"
+                class="input"
               />
-              <input 
+              <input
                 v-else
-                v-model.number="cond.valor_limite" 
-                type="number" 
-                placeholder="80" 
-                style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" 
+                v-model.number="cond.valor_limite"
+                type="number"
+                placeholder="80"
+                class="input"
               />
             </div>
+
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Tempo (s):</label>
-              <input v-model.number="cond.tempo" type="number" placeholder="5" min="0" title="0 = instantâneo, >0 = condição deve ser verdadeira por essa duração" style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
+              <label class="label-green">Tempo (s):</label>
+              <input v-model.number="cond.tempo" type="number" placeholder="5" min="0" class="input" />
             </div>
-            <button @click="removeCondition(index)" style="padding:6px 10px; border-radius:4px; border:none; background:rgba(255,77,79,0.3); color:#ff7875; cursor:pointer; font-size:12px">🗑️</button>
-          </div>
-          
-          <!-- Password Condition -->
-          <div v-else-if="cond.tipo === 'senha'" style="display:grid; grid-template-columns: 1fr 1fr 1fr auto; gap:8px; align-items:end">
+
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Placa:</label>
-              <select 
-                v-model="cond.id_device" 
+              <button @click="removeCondition(index)" class="btn-delete">🗑️</button>
+            </div>
+          </div>
+
+          <div v-else-if="cond.tipo === 'senha'" class="grid-cond-pass">
+            <div>
+              <label class="label-green">Placa:</label>
+              <select
+                v-model="cond.id_device"
                 @change="fetchSensorsForBoard(cond.id_device.replace('esp32_device_', ''))"
-                style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
+                class="select border-green"
               >
                 <option value="" disabled>Selecione a placa...</option>
                 <option v-for="board in boards" :key="board.id" :value="`esp32_device_${board.deviceId}`">
@@ -860,49 +845,48 @@ onMounted(() => {
                 </option>
               </select>
             </div>
+
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Teclado:</label>
-              <select 
-                v-model="cond.id_sensor" 
-                :disabled="!cond.id_device"
-                style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
-              >
+              <label class="label-green">Teclado:</label>
+              <select v-model="cond.id_sensor" :disabled="!cond.id_device" class="select border-green">
                 <option value="" disabled>{{ cond.id_device ? 'Selecione o teclado...' : 'Selecione a placa primeiro' }}</option>
-                <option 
+                <option
                   v-for="sensor in getSensorsForDevice(cond.id_device?.replace('esp32_device_', '')).filter(s => s.tipo === 7)"
-                  :key="sensor.id" 
+                  :key="sensor.id"
                   :value="sensor.id"
                 >
                   {{ sensor.desc || `Keypad ${sensor.id}` }}
                 </option>
               </select>
             </div>
+
             <div>
-              <label style="display:block; color:#95de64; font-size:12px; margin-bottom:4px">Senha:</label>
-              <input v-model="cond.senha" placeholder="1234" style="width:100%; padding:6px; border-radius:4px; border:1px solid #52c41a; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
+              <label class="label-green">Senha:</label>
+              <input v-model="cond.senha" placeholder="1234" class="input" />
             </div>
-            <button @click="removeCondition(index)" style="padding:6px 10px; border-radius:4px; border:none; background:rgba(255,77,79,0.3); color:#ff7875; cursor:pointer; font-size:12px">🗑️</button>
+
+            <div>
+              <button @click="removeCondition(index)" class="btn-delete">🗑️</button>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Then Actions -->
+      <!-- Then Actions (New) -->
       <div style="margin-bottom:20px">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
-          <h4 style="margin:0; color:#ffc53d">Ações (ENTÃO)</h4>
-          <button @click="addThenAction" style="padding:6px 12px; border-radius:6px; border:none; background:#faad14; color:white; cursor:pointer; font-weight:600; font-size:12px">
-            Adicionar ação
-          </button>
+        <div class="flex-between" style="margin-bottom:12px">
+          <h4 class="label-orange">Ações (ENTÃO)</h4>
+          <button @click="addThenAction" class="btn-small btn-orange">Adicionar ação</button>
         </div>
-        
-        <div v-for="(action, index) in newRule.entao" :key="index" style="margin-bottom:12px; padding:12px; background:rgba(250,173,20,0.1); border-radius:8px; border:1px solid rgba(250,173,20,0.3)">
-          <div style="display:grid; grid-template-columns: 1fr 1fr 100px 1fr 1fr auto; gap:8px; align-items:end">
+
+        <div v-for="(action, index) in newRule.entao" :key="index" class="block-orange">
+          <div class="grid-action">
             <div>
-              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Placa:</label>
-              <select 
-                v-model="action.id_device" 
+              <label class="label-orange">Placa:</label>
+              <select
+                v-model="action.id_device"
                 @change="fetchSensorsForBoard(action.id_device.replace('esp32_device_', ''))"
-                style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
+                class="select border-orange"
               >
                 <option value="" disabled>Selecione a placa...</option>
                 <option v-for="board in boards" :key="board.id" :value="`esp32_device_${board.deviceId}`">
@@ -910,64 +894,66 @@ onMounted(() => {
                 </option>
               </select>
             </div>
+
             <div>
-              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Atuador:</label>
-              <select 
-                v-model="action.id_atuador" 
-                :disabled="!action.id_device"
-                style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
-              >
+              <label class="label-orange">Atuador:</label>
+              <select v-model="action.id_atuador" :disabled="!action.id_device" class="select border-orange">
                 <option value="" disabled>{{ action.id_device ? 'Selecione o atuador...' : 'Selecione a placa primeiro' }}</option>
-                <option 
+                <option
                   v-for="actuator in getSensorsForDevice(action.id_device?.replace('esp32_device_', '')).filter(s => s.tipo === 4 || s.tipo === 5)"
-                  :key="actuator.id" 
+                  :key="actuator.id"
                   :value="actuator.id"
                 >
                   {{ actuator.desc || `Atuador ${actuator.id}` }} (Tipo: {{ actuator.tipo === 4 ? 'Servo' : 'Relé' }})
                 </option>
               </select>
             </div>
+
             <div>
-              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Modo:</label>
-              <select v-model="action.modo" style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px">
+              <label class="label-orange">Modo:</label>
+              <select v-model="action.modo" class="select border-orange">
                 <option value="set">Set</option>
                 <option value="toggle">Toggle</option>
               </select>
             </div>
+
             <div v-if="action.modo === 'set'">
-              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Value:</label>
-              <input v-model.number="action.valor" type="number" placeholder="1" style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
+              <label class="label-orange">Value:</label>
+              <input v-model.number="action.valor" type="number" placeholder="1" class="input" />
             </div>
+
             <div v-else>
-              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Value:</label>
-              <input value="Toggle" disabled style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.2); color:#999; font-size:13px" />
+              <label class="label-orange">Value:</label>
+              <input value="Toggle" disabled class="input input-disabled" />
             </div>
+
             <div>
-              <label style="display:block; color:#ffc53d; font-size:12px; margin-bottom:4px">Duração (s):</label>
-              <input v-model.number="action.tempo" type="number" placeholder="0" min="0" title="0 = permanente, >0 = temporário (auto-reverter para 0)" style="width:100%; padding:6px; border-radius:4px; border:1px solid #faad14; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
+              <label class="label-orange">Duração (s):</label>
+              <input v-model.number="action.tempo" type="number" placeholder="0" min="0" class="input" />
             </div>
-            <button @click="removeThenAction(index)" style="padding:6px 10px; border-radius:4px; border:none; background:rgba(255,77,79,0.3); color:#ff7875; cursor:pointer; font-size:12px">🗑️</button>
+
+            <div>
+              <button @click="removeThenAction(index)" class="btn-delete">🗑️</button>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Else Actions -->
+      <!-- Else Actions (New) -->
       <div style="margin-bottom:20px">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
-          <h4 style="margin:0; color:#ff85c0">Ações (SENÃO) - Opcional</h4>
-          <button @click="addElseAction" style="padding:6px 12px; border-radius:6px; border:none; background:#eb2f96; color:white; cursor:pointer; font-weight:600; font-size:12px">
-            Adicionar Ação
-          </button>
+        <div class="flex-between" style="margin-bottom:12px">
+          <h4 class="label-pink">Ações (SENÃO) - Opcional</h4>
+          <button @click="addElseAction" class="btn-small btn-pink">Adicionar Ação</button>
         </div>
-        
-        <div v-for="(action, index) in newRule.senao" :key="index" style="margin-bottom:12px; padding:12px; background:rgba(235,47,150,0.1); border-radius:8px; border:1px solid rgba(235,47,150,0.3)">
-          <div style="display:grid; grid-template-columns: 1fr 1fr 100px 1fr 1fr auto; gap:8px; align-items:end">
+
+        <div v-for="(action, index) in newRule.senao" :key="index" class="block-pink">
+          <div class="grid-action">
             <div>
-              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Placa:</label>
-              <select 
-                v-model="action.id_device" 
+              <label class="label-pink">Placa:</label>
+              <select
+                v-model="action.id_device"
                 @change="fetchSensorsForBoard(action.id_device.replace('esp32_device_', ''))"
-                style="width:100%; padding:6px; border-radius:4px; border:1px solid #eb2f96; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
+                class="select border-pink"
               >
                 <option value="" disabled>Selecione a placa...</option>
                 <option v-for="board in boards" :key="board.id" :value="`esp32_device_${board.deviceId}`">
@@ -975,40 +961,43 @@ onMounted(() => {
                 </option>
               </select>
             </div>
+
             <div>
-              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Atuador:</label>
-              <select 
-                v-model="action.id_atuador" 
-                :disabled="!action.id_device"
-                style="width:100%; padding:6px; border-radius:4px; border:1px solid #eb2f96; background:rgba(0,0,0,0.3); color:#fff; font-size:13px"
-              >
+              <label class="label-pink">Atuador:</label>
+              <select v-model="action.id_atuador" :disabled="!action.id_device" class="select border-pink">
                 <option value="" disabled>{{ action.id_device ? 'Selecione o atuador...' : 'Selecione a placa primeiro' }}</option>
-                <option 
+                <option
                   v-for="actuator in getSensorsForDevice(action.id_device?.replace('esp32_device_', '')).filter(s => s.tipo === 4 || s.tipo === 5)"
-                  :key="actuator.id" 
+                  :key="actuator.id"
                   :value="actuator.id"
                 >
                   {{ actuator.desc || `Atuador ${actuator.id}` }} (Tipo: {{ actuator.tipo === 4 ? 'Servo' : 'Relé' }})
                 </option>
               </select>
             </div>
+
             <div>
-              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Valor:</label>
-              <input v-model.number="action.valor" type="number" placeholder="0" style="width:100%; padding:6px; border-radius:4px; border:1px solid #eb2f96; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
+              <label class="label-pink">Valor:</label>
+              <input v-model.number="action.valor" type="number" placeholder="0" class="input" />
             </div>
+
             <div>
-              <label style="display:block; color:#ff85c0; font-size:12px; margin-bottom:4px">Duração (s):</label>
-              <input v-model.number="action.tempo" type="number" placeholder="0" min="0" title="0 = set and stay (no auto-revert), >0 = temporary (auto-revert to 0 after duration)" style="width:100%; padding:6px; border-radius:4px; border:1px solid #eb2f96; background:rgba(0,0,0,0.3); color:#fff; font-size:13px" />
+              <label class="label-pink">Duração (s):</label>
+              <input v-model.number="action.tempo" type="number" placeholder="0" min="0" class="input" />
             </div>
-            <button @click="removeElseAction(index)" style="padding:6px 10px; border-radius:4px; border:none; background:rgba(255,77,79,0.3); color:#ff7875; cursor:pointer; font-size:12px">🗑️</button>
+
+            <div>
+              <button @click="removeElseAction(index)" class="btn-delete">🗑️</button>
+            </div>
           </div>
         </div>
       </div>
 
-      <button 
+      <button
         @click="createRule"
         :disabled="!newRule.id_regra || newRule.condicao.length === 0 || newRule.entao.length === 0"
-        style="padding:12px 24px; border-radius:8px; border:none; background:#52c41a; color:white; cursor:pointer; font-weight:600; font-size:14px; width:100%"
+        class="btn btn-green"
+        style="width:100%"
       >
         Criar regra
       </button>
@@ -1025,44 +1014,40 @@ onMounted(() => {
 
     <div v-else-if="rules.length">
       <ul style="list-style:none; padding:0">
-        <li v-for="rule in rules" :key="rule.id_regra" style="margin-bottom:16px; padding:16px; background:rgba(255,255,255,0.05); border-radius:12px; border-left:4px solid #1890ff">
-          <div style="display:flex; justify-content:space-between; align-items:start">
+        <li v-for="rule in rules" :key="rule.id_regra" class="block" style="margin-bottom:16px; padding:16px; background:rgba(255,255,255,0.05); border-radius:12px; border-left:4px solid #1890ff">
+          <div class="flex-between">
             <div style="flex:1">
               <h3 style="margin:0 0 12px 0; color:#91d5ff">{{ rule.id_regra }}</h3>
-              
+
               <!-- Conditions -->
               <div style="margin-bottom:12px">
-                <strong style="color:#95de64">IF:</strong>
+                <strong class="label-green">IF:</strong>
                 <div v-for="(cond, idx) in rule.condicao" :key="idx" style="margin-left:20px; color:#bfbfbf; font-size:14px">
                   <span v-if="cond.tipo === 'limite'">- Sensor {{ cond.id_sensor }} ({{ cond.id_device }}) campo "{{ cond.medida }}" {{ cond.operador }} {{ cond.valor_limite }} por {{ cond.tempo }}s</span>
                   <span v-else-if="cond.tipo === 'senha'">- Keypad {{ cond.id_sensor }} ({{ cond.id_device }}) senha: {{ cond.senha }}</span>
                 </div>
               </div>
-              
+
               <!-- Actions -->
               <div style="margin-bottom:12px">
-                <strong style="color:#ffc53d">THEN:</strong>
+                <strong class="label-orange">THEN:</strong>
                 <div v-for="(action, idx) in rule.entao" :key="idx" style="margin-left:20px; color:#bfbfbf; font-size:14px">
                   - Atuador {{ action.id_atuador }} ({{ action.id_device }}) para {{ action.valor }}<span v-if="action.tempo && action.tempo > 0"> por {{ action.tempo }}s</span>
                 </div>
               </div>
-              
+
               <!-- Else Actions -->
               <div v-if="rule.senao && rule.senao.length > 0">
-                <strong style="color:#ff85c0">ELSE:</strong>
+                <strong class="label-pink">ELSE:</strong>
                 <div v-for="(action, idx) in rule.senao" :key="idx" style="margin-left:20px; color:#bfbfbf; font-size:14px">
                   - Atuador {{ action.id_atuador }} ({{ action.id_device }}) para {{ action.valor }}<span v-if="action.tempo && action.tempo > 0"> por {{ action.tempo }}s</span>
                 </div>
               </div>
             </div>
-            
-            <div style="display:flex; gap:8px">
-              <button 
-                @click="startEdit(rule)"
-                style="padding:8px 16px; border-radius:8px; border:none; background:rgba(250,173,20,0.25); color:#ffc53d; cursor:pointer; font-weight:600; font-size:13px">Editar</button>
-              <button 
-                @click="deleteRule(rule.id_regra)"
-                style="padding:8px 16px; border-radius:8px; border:none; background:rgba(255,77,79,0.25); color:#ff7875; cursor:pointer; font-weight:600; font-size:13px">Excluir</button>
+
+            <div class="flex-gap-12">
+              <button @click="startEdit(rule)" class="btn-small btn-orange">Editar</button>
+              <button @click="deleteRule(rule.id_regra)" class="btn-delete">Excluir</button>
             </div>
           </div>
         </li>
@@ -1074,3 +1059,279 @@ onMounted(() => {
     </div>
   </section>
 </template>
+
+
+<style scoped>
+
+/* ============================================================
+   LAYOUTS GERAIS — mantém estrutura, atualiza visual fosco
+   ============================================================ */
+
+.flex-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.flex {
+  display: flex;
+}
+
+.flex-gap-12 {
+  display: flex;
+  gap: 12px;
+}
+
+.grid-cond-limit,
+.grid-cond-pass,
+.grid-action {
+  gap: 8px;
+  align-items: end;
+}
+
+.grid-cond-limit {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr) auto;
+}
+
+.grid-cond-pass {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr) auto;
+}
+
+.grid-action {
+  display: grid;
+  grid-template-columns: 1fr 1fr 100px 1fr 1fr auto;
+}
+
+
+/* ============================================================
+   TÍTULOS — mantendo esquema simples
+   ============================================================ */
+
+h2, h3, h4 {
+  margin: 0;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+
+/* ============================================================
+   BOTÕES — agora idênticos ao estilo fosco do painel
+   ============================================================ */
+
+.btn, .btn-small {
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-weight: 600;
+
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,255,255,0.15);
+
+  box-shadow: 0 3px 10px rgba(0,0,0,0.25);
+  transition: 0.15s;
+}
+
+.btn {
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.btn-small {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+/* Cores foscas */
+.btn-green  { background: rgba(82,196,26,0.45); }
+.btn-blue   { background: rgba(24,144,255,0.45); }
+.btn-orange { background: rgba(250,173,20,0.45); }
+.btn-pink   { background: rgba(235,47,150,0.45); }
+
+/* delete */
+.btn-delete {
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(199, 0, 3, 0.35);
+  color: #ff7875;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.btn:hover:not(.btn-disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 14px rgba(0,0,0,0.35);
+}
+
+.btn-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+
+/* ============================================================
+   MENSAGENS — convertidas para visual fosco escuro
+   ============================================================ */
+
+.msg-success,
+.msg-error {
+  margin-bottom: 16px;
+  padding: 12px;
+  border-left-width: 4px;
+  border-left-style: solid;
+  border-radius: 6px;
+
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255, 215, 215, 0.2);
+  color: white;
+
+  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+}
+
+.msg-success { border-left-color: #52c41a; }
+.msg-error   { border-left-color: #ff4d4f; }
+
+
+/* ============================================================
+   FORMS — convertidos para caixas foscas uniformes
+   ============================================================ */
+
+.form-edit,
+.form-add {
+  margin-bottom: 24px;
+  padding: 20px;
+  border-radius: 12px;
+
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.18);
+
+  box-shadow: 0 3px 12px rgba(0,0,0,0.25);
+}
+
+.input-block {
+  width: 115%;
+  margin-bottom: 16px;
+}
+
+
+/* ============================================================
+   INPUTS E SELECTS — agora iguais aos do sensor-select
+   ============================================================ */
+
+.input,
+.select,
+.input-large {
+  width: 85%;
+  padding: 10px;
+
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.25);
+  color: white;
+
+  border-radius: 10px;
+  font-size: 13px;
+
+  box-shadow: inset 0 0 8px rgba(0,0,0,0.25);
+}
+
+.input-large {
+  font-size: 14px;
+}
+
+.input:focus,
+.select:focus {
+  outline: none;
+  border-color: rgba(255,255,255,0.5);
+}
+
+
+/* disabled */
+.input-disabled {
+  background: rgba(0,0,0,0.5);
+  color: #8c8c8c;
+  cursor: not-allowed;
+}
+
+
+/* tamanhos específicos */
+.input-id   { width: 60%; }
+.input-cond { width: 70%; }
+.input-act  { width: 70%; }
+
+
+/* ============================================================
+   BLOCKS (condição/ação) — agora iguais aos boxes foscos
+   ============================================================ */
+
+.block-green,
+.block-orange,
+.block-pink {
+  margin-bottom: 12px;
+  padding: 16px;
+
+  border-radius: 12px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.2);
+
+  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+}
+
+/* bordas coloridas foscas */
+.block-green  { border-left: 4px solid rgba(82,196,26,0.7); }
+.block-orange { border-left: 4px solid rgba(250,173,20,0.7); }
+.block-pink   { border-left: 4px solid rgba(235,47,150,0.7); }
+
+
+/* ============================================================
+   LABELS COLORIDAS — versão fosca
+   ============================================================ */
+
+.label-green  { color: rgba(149,222,100,0.9); }
+.label-orange { color: rgba(255,197,61,0.9); }
+.label-pink   { color: rgba(255,133,192,0.9); }
+
+.label-green,
+.label-orange,
+.label-pink {
+  font-size: 12px;
+  margin-bottom: 4px;
+  display: block;
+}
+
+
+/* ============================================================
+   INPUTS COM BORDAS COLORIDAS (tema fosco)
+   ============================================================ */
+
+.border-green  { border-color: rgba(82,196,26,0.6); }
+.border-orange { border-color: rgba(250,173,20,0.6); }
+.border-pink   { border-color: rgba(235,47,150,0.6); }
+
+
+/* ============================================================
+   REGRAS, CONDITIONS, ACTIONS — mantém proporções internas
+   ============================================================ */
+
+.rule-id-box input {
+  width: 50% !important;
+}
+
+.condition-box input,
+.condition-box select,
+.condition-box .row input,
+.condition-box .row select,
+.action-box input,
+.action-box select,
+.action-box .row input,
+.action-box .row select {
+  width: 70% !important;
+  max-width: 70% !important;
+  flex: 0 0 70% !important;
+}
+
+</style>
+
