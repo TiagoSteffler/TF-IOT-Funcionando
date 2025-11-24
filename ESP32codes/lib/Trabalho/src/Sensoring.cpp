@@ -227,6 +227,18 @@ bool createSensorObject(Sensor &sensor) {
             break;
         }
         
+        case ENCODER: {
+            Serial.print("Criando Encoder com ID ");
+            Serial.println(sensor.id);
+            if (sensor.pinos.size() > 0) {
+                sensor.objeto = new Encoder(sensor.pinos[0].pin, sensor.id);
+            } else {
+                Serial.println("Erro: Encoder precisa de pelo menos 1 pino");
+                return false;
+            }
+            break;
+        }
+        
         default:
             Serial.print("Tipo de sensor desconhecido: ");
             Serial.println(sensor.tipo);

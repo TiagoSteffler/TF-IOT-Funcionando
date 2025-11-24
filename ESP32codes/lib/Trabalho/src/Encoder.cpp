@@ -15,7 +15,7 @@ Encoder::Encoder(int pin, int id) {
     }
     
     if (!DEBUGCOMM) {
-        pinMode(this->dataPin, INPUT_PULLUP);
+        pinMode(this->dataPin, INPUT);
     }
 }
 
